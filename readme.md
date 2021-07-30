@@ -1,5 +1,8 @@
 # Streamr Agreements
 
+[![hackmd-github-sync-badge](https://hackmd.io/Id2t4vybRE-_QWwKqgs_KA/badge)](https://hackmd.io/Id2t4vybRE-_QWwKqgs_KA)
+
+
 This is a simple spec as a launch point. This document considers a single agreement concerning support for a single stream. The idea is to define the proposal inverter based on a specific real world use case: streamr.
 
 ![](agreement.png)
