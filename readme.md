@@ -49,7 +49,7 @@ In the event that the owner closes down a contract, each Broker gets back their 
 
 That is to say the quantity $\Delta d_i$ of data tokens is distributed to each broker $i \in \mathcal{B}$
 
-$$\Delta d_i = s_i + a_i + \frac{R}{N}$$
+$$\Delta d_i = s_i + a_i + \frac{R}{n}$$
 
 and thus the penultimate financial state of the contract is
 
@@ -61,7 +61,7 @@ when the contract is self-destructed.
 
 #### Forced Cancel
 
-There may conditions under which any address may trigger the cancel but these conditions should be indicative of a failure on the part of the payer. An example policy would be to allow forced cancel when $n < n_{\min}$ and $H<H_\min$, and possibly only if this is the case more multiple epochs.
+There may conditions under which any address may trigger the cancel but these conditions should be indicative of a failure on the part of the payer. An example policy would be to allow forced cancel when $n < n_{\min}$ and $H<H_\min$, and possibly only if this is the case for multiple epochs.
 
 ### Payer
 
@@ -140,7 +140,7 @@ F^+= F-a_i$$
 The broker recieves the balance $s_i + a_i$.
 
 
-However if a broker has not stayed for the entire period $\tau$ or the contract is not running low on funds, the stake will be kept as payment by the agreement contract when the broker leaves
+However if a broker has not stayed for the entire period $\tau$ and the contract is not running low on funds, the stake will be kept as payment by the agreement contract when the broker leaves
 
 $$\mathcal{B}^+ = \mathcal{B}-\{i\}\\
 S^+ = S-s_i \\
