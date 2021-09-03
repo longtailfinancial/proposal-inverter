@@ -1,14 +1,8 @@
-# Streamr Agreements
+# Generalized Proposal Inverter
+The idea is to define the generalized  proposal inverter.
 
 [![hackmd-github-sync-badge](https://hackmd.io/Id2t4vybRE-_QWwKqgs_KA/badge)](https://hackmd.io/Id2t4vybRE-_QWwKqgs_KA)
 
-Project Manifesto
-https://docs.google.com/document/d/1cbdNPXpXnTpMSLSoO2oqcjU_2KNobE-w_t6EjbBQ4Yg/edit
-
-
-This is a simple spec as a launch point. This document considers a single agreement concerning support for a single stream. The idea is to define the proposal inverter based on a specific real world use case: streamr.
-
-![](agreement.png)
 
 ## State
 
@@ -40,19 +34,18 @@ This is a simple spec as a launch point. This document considers a single agreem
 ![](https://i.imgur.com/12NhGZc.png)
 
 
-### Owner
+### Owner 
+Owner can be brokers or Payers or both
 
 #### Deploy
-
-An actor within the streamr ecosystem can deploy a new agreement contract by specifying which stream the agreement supports, setting the parameters of the smart contract providing initial funds, and providing any (unenforced) commitment to continue topping up the contract as payer under as long as a set of SLAs are met. For the purpose of this draft, it is assume that the contract is initialized with some quantity of funds $F$ such that $H>H_{\min}$ and that $\mathcal{B} = \emptyset$.
+An actor within the ecosystem can deploy a new agreement contract by specifying which proposal the agreement supports, setting the parameters of the smart contract providing initial funds, and providing any (unenforced) commitment to continue topping up the contract as payer under as long as a set of SLAs are met. For the purpose of this draft, it is assumed that the contract is initialized with some quantity of funds $F$ such that $H>H_{\min}$ and that $\mathcal{B} = \emptyset$.
 
 #### Cancel
-
 In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any unclaimed tokens allocated to their address as well an equal share of the remaining unallocated assets.
 
 That is to say the quantity $\Delta d_i$ of data tokens is distributed to each broker $i \in \mathcal{B}$
 
-$$\Delta d_i = s_i + a_i + \frac{R}{n}$$
+$$\Delta d_i = s_i + a_i + \frac{R}{N}$$
 
 and thus the penultimate financial state of the contract is
 
@@ -64,7 +57,7 @@ when the contract is self-destructed.
 
 #### Forced Cancel
 
-There may conditions under which any address may trigger the cancel but these conditions should be indicative of a failure on the part of the payer. An example policy would be to allow forced cancel when $n < n_{\min}$ and $H<H_\min$, and possibly only if this is the case for multiple epochs.
+There may conditions under which any address may trigger the cancel but these conditions should be indicative of a failure on the part of the payer. An example policy would be to allow forced cancel when $n < n_{\min}$ and $H<H_\min$, and possibly only if this is the case more multiple epochs.
 
 ### Payer
 
@@ -72,7 +65,7 @@ A payer, who may or may not be the owner may contribute funds to the agreement i
 
 #### Pay
 
-A payer takes the action pay by providing a quantity of DATA tokens $\Delta F$ which increased the unallocated funds (and thus also the total funds).
+A payer takes the action pay by providing a quantity of tokens (split into Stablecoins and DAO tokens) $\Delta F$ which increased the unallocated funds (and thus also the total funds).
 
 $$ F^+ = F+\Delta F\\
 R^+ = R + \Delta F$$
@@ -108,7 +101,7 @@ Above, I have considered a very simple conditional allocation policy, that provi
 
 #### Join
 
-A broker $i$ can join the agreement (and must also join the stream associated with that agreement) by staking $s_i\ge \sigma$
+A broker $i$ can join the agreement by staking $s_i\ge \sigma$
 
 $$ \mathcal{B}^+ = \mathcal{B} \cup \{i\}\\
 S^+ = S+s_i
@@ -143,7 +136,7 @@ F^+= F-a_i$$
 The broker recieves the balance $s_i + a_i$.
 
 
-However if a broker has not stayed for the entire period $\tau$ and the contract is not running low on funds, the stake will be kept as payment by the agreement contract when the broker leaves
+However if a broker has not stayed for the entire period $\tau$ or the contract is not running low on funds, the stake will be kept as payment by the agreement contract when the broker leaves
 
 $$\mathcal{B}^+ = \mathcal{B}-\{i\}\\
 S^+ = S-s_i \\
