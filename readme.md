@@ -22,7 +22,7 @@ The idea is to define the generalized  proposal inverter.
 
 | Name | Symbol | Definition |  initial value|
 | -------- | -------- | -------- | -- |
-|  Required Stake   | $s_{\min}$     | $s_i\ge \sigma$ | 5|
+|  Minimum Stake   | $s_{\min}$     | $s_i\ge \sigma$ | 5|
 | Epoch Length   | $\Delta t$     | | 1 day |
 | Min Epochs | $\tau$| | 28
 | Allocation Per Epoch | $\Delta A$| | 10 |
