@@ -36,23 +36,18 @@ class BrokerAgreement(pm.Parameterized):
 
 
 class ProposalInverter(Wallet):
-    """
-    The proposal inverter stores a dictionary of broker agreements, which maps the broker's public key to their broker
-    agreement.
-    """
     # State
     
     # Parameters
-    min_stake = pm.Number(5)
-    current_epoch = pm.Number(0)
-    epoch_length = pm.Number(60*60*24)
-    min_epochs = pm.Number(28)
-    allocation_per_epoch = pm.Number(10)
-    min_horizon = pm.Number(700)
-    min_brokers = pm.Number(1)
-    max_brokers = pm.Number(5)
-    broker_claimable_funds = pm.Dict(dict())
-    broker_agreements = pm.Dict(dict())
+    min_stake = pm.Number(5, doc="minimum funds that a broker must stake to join")
+    current_epoch = pm.Number(0, doc="number of epochs that have passed")
+    epoch_length = pm.Number(60*60*24, doc="length of one epoch, measured in seconds")
+    min_epochs = pm.Number(28, doc="minimum number of epochs that must pass for a broker to exit and take their stake")
+    allocation_per_epoch = pm.Number(10, doc="funds allocated to all brokers per epoch")
+    min_horizon = pm.Number(7, doc="minimum number of future epochs the proposal inverter can allocate funds for")
+    min_brokers = pm.Number(1, doc="minimum number of brokers required to continue")
+    max_brokers = pm.Number(5, doc="maximum number of brokers that can join")
+    broker_agreements = pm.Dict(dict(), doc="maps each broker's public key to their broker agreement")
     owner = str()
     
     def __init__(self, owner: Wallet, initial_funds: float, **params):
@@ -137,7 +132,7 @@ class ProposalInverter(Wallet):
         if broker_agreement is None:
             print("Broker is not part of this proposal")
         else:
-            if self.current_epoch - broker_agreement.epoch_joined >= self.min_epochs and self.funds < self.min_horizon:
+            if self.current_epoch - broker_agreement.epoch_joined >= self.min_epochs and self.get_horizon() < self.min_horizon:
                 stake = broker_agreement.initial_stake
                 broker.funds += stake
                 self.funds -= stake
@@ -169,6 +164,12 @@ class ProposalInverter(Wallet):
         Returns the total unclaimed allocated funds from all broker agreements.
         """
         return sum([broker_agreement.allocated_funds for broker_agreement in self.broker_agreements.values()])
+
+    def get_horizon(self):
+        """
+        Returns the current horizon.
+        """
+        return (self.funds - self.get_allocated_funds()) / self.allocation_per_epoch
     
     def cancel(self):
         """

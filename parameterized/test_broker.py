@@ -91,7 +91,7 @@ def test_remove_broker():
     assert inverter.number_of_brokers() == 2
     assert inverter.funds == 700
 
-    # Remove a broker after the minimum horizon
+    # Remove a broker while over the minimum horizon
     inverter.iter_epoch(30)
 
     broker1 = inverter.remove_broker(broker1)
