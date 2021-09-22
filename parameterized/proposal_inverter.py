@@ -171,6 +171,19 @@ class ProposalInverter(Wallet):
         """
         return (self.funds - self.get_allocated_funds()) / self.allocation_per_epoch
     
+    def pay(self, broker: Broker, tokens):
+        """
+        A payer takes the action pay by providing a quantity of tokens (split into Stablecoins and DAO tokens) 
+        ΔF, which increased the unallocated funds (and thus also the total funds).
+        F+ = F + ΔF
+        R+ = R + ΔF
+        Furthermore, the Horizon H is increased 
+        H+ = (R + ΔF)/ ΔA = H + (ΔF/ΔA)
+        """
+        broker.funds -= tokens
+        self.funds += tokens
+        return broker
+    
     def cancel(self):
         """
         In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any 
@@ -212,30 +225,42 @@ class Owner(Wallet):
         of this draft, it is assumed that the contract is initialized with some quantity of funds F such that H>Hmin 
         and that B=∅.
         """
-        
+        # Check imposed restrictions (whether horizon is greater than the min horizon)
+        horizon = initial_funds/params['allocation_per_epoch']
+        if horizon < params['min_horizon']:
+            print("The Horizon is lower than the mininum required horizon")
+            return null
         agreement_contract = ProposalInverter(
-            owner = self,
-            initial_funds = initial_funds,
-            **agreement_contract_params,
-        )
+                owner = self,
+                initial_funds = initial_funds,
+                agreement_contract_params = params,
+            )
         
         return agreement_contract
         
-    def cancel(self, agreement_contract):
+    def cancel(self, agreement_contract, broker_pool):
         """
         In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any 
         unclaimed tokens allocated to their address as well an equal share of the remaining unallocated assets.
         
         That is to say the quantity Δdi of data tokens is distributed to each broker i∈B
-
-        Δdi=si+ai+RN
-
+        Δdi=si+ai+(R/N)
         and thus the penultimate financial state of the contract is
-
-        S=0R=0A=0
-
+        S=0, R=0, A=0
         when the contract is self-destructed.
         """
+        # This function relies on there being given a broker_pool that keeps track of brokers
         
-        agreement_contract.cancel(self)
+        # Calculate the total allocated funds & total stake for proper calculation
+        total_stake = 0
+        total_allocated_funds = agreement_contract.get_allocated_funds()
+        for public_key, broker_agreement in inverter.broker_agreements.items():
+            total_stake += broker_agreement.initial_stake 
+        for public_key, broker_agreement in agreement_contract.broker_agreements.items():
+            broker_agreement.allocated_funds += broker_agreement.initial_stake + (agreement_contract.funds - total_stake - total_allocated_funds) / agreement_contract.number_of_brokers()
+        for broker_key in broker_pool:
+            broker_pool[broker_key] = agreement_contract.claim_broker_funds(broker_pool[broker_key])
+            
+        agreement_contract.cancel()
+        return broker_pool
 
