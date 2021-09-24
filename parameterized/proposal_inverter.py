@@ -199,16 +199,14 @@ class ProposalInverter(Wallet):
 
         when the contract is self-destructed.
         """    
-        total_stake = 0
+        total_stake = sum([broker_agreement.initial_stake for broker_agreement in self.broker_agreements.values()])
         total_allocated_funds = self.get_allocated_funds()
-        for public_key, broker_agreement in self.broker_agreements.items():
-            total_stake += broker_agreement.initial_stake 
+
         for public_key, broker_agreement in self.broker_agreements.items():
             broker_agreement.allocated_funds += broker_agreement.initial_stake + (self.funds - total_stake - total_allocated_funds) / self.number_of_brokers()
     
     
 class Owner(Wallet):
-    
     def _default_agreement_contract_params(self):
         params = dict(
             min_stake = 5,
@@ -229,15 +227,19 @@ class Owner(Wallet):
         of this draft, it is assumed that the contract is initialized with some quantity of funds F such that H>Hmin 
         and that B=∅.
         """
+        if not agreement_contract_params:
+            agreement_contract_params = self._default_agreement_contract_params()
+            
         # Check imposed restrictions (whether horizon is greater than the min horizon)
-        horizon = initial_funds/params['allocation_per_epoch']
-        if horizon < params['min_horizon']:
+        horizon = initial_funds / agreement_contract_params['allocation_per_epoch']
+        if horizon < agreement_contract_params['min_horizon']:
             print("The Horizon is lower than the mininum required horizon")
-            return null
+            return None
+
         agreement_contract = ProposalInverter(
                 owner = self,
                 initial_funds = initial_funds,
-                agreement_contract_params = params,
+                **agreement_contract_params,
             )
         
         return agreement_contract
@@ -257,7 +259,9 @@ class Owner(Wallet):
         
         # Calculate the total allocated funds & total stake for proper calculation
         agreement_contract.cancel()
+
         for broker_key in broker_pool:
             broker_pool[broker_key] = agreement_contract.claim_broker_funds(broker_pool[broker_key])
+
         return broker_pool
 

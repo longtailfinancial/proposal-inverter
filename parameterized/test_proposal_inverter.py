@@ -33,12 +33,10 @@ def test_remove_proposal_inverter():
     
     # Create a prototype broker pool, which is a dictionary where the key is the broker public key
     # and the value is the broker object
-    keyarray = []
-    for public_key, broker_agreement in inverter.broker_agreements.items():
-        keyarray.append(public_key)
-    broker_pool = dict()
-    broker_pool[keyarray[0]] = broker1
-    broker_pool[keyarray[1]] = broker2
+    broker_pool = {
+        broker1.public: broker1,
+        broker2.public: broker2,
+    }
     
     """
     If we have a proposal inverter deployed at 500 and 2 brokers enter the agreement, 
