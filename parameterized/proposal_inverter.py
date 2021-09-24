@@ -199,8 +199,12 @@ class ProposalInverter(Wallet):
 
         when the contract is self-destructed.
         """    
-        pass
-    
+        total_stake = 0
+        total_allocated_funds = self.get_allocated_funds()
+        for public_key, broker_agreement in self.broker_agreements.items():
+            total_stake += broker_agreement.initial_stake 
+        for public_key, broker_agreement in self.broker_agreements.items():
+            broker_agreement.allocated_funds += broker_agreement.initial_stake + (self.funds - total_stake - total_allocated_funds) / self.number_of_brokers()
     
     
 class Owner(Wallet):
@@ -252,15 +256,8 @@ class Owner(Wallet):
         # This function relies on there being given a broker_pool that keeps track of brokers
         
         # Calculate the total allocated funds & total stake for proper calculation
-        total_stake = 0
-        total_allocated_funds = agreement_contract.get_allocated_funds()
-        for public_key, broker_agreement in inverter.broker_agreements.items():
-            total_stake += broker_agreement.initial_stake 
-        for public_key, broker_agreement in agreement_contract.broker_agreements.items():
-            broker_agreement.allocated_funds += broker_agreement.initial_stake + (agreement_contract.funds - total_stake - total_allocated_funds) / agreement_contract.number_of_brokers()
+        agreement_contract.cancel()
         for broker_key in broker_pool:
             broker_pool[broker_key] = agreement_contract.claim_broker_funds(broker_pool[broker_key])
-            
-        agreement_contract.cancel()
         return broker_pool
 
