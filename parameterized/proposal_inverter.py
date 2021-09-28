@@ -41,12 +41,14 @@ class ProposalInverter(Wallet):
     # Parameters
     min_stake = pm.Number(5, doc="minimum funds that a broker must stake to join")
     current_epoch = pm.Number(0, doc="number of epochs that have passed")
+    cancel_epoch = pm.Number(0, doc="epoch where cancellation conditions have been met")
     epoch_length = pm.Number(60*60*24, doc="length of one epoch, measured in seconds")
     min_epochs = pm.Number(28, doc="minimum number of epochs that must pass for a broker to exit and take their stake")
     allocation_per_epoch = pm.Number(10, doc="funds allocated to all brokers per epoch")
     min_horizon = pm.Number(7, doc="minimum number of future epochs the proposal inverter can allocate funds for")
     min_brokers = pm.Number(1, doc="minimum number of brokers required to continue")
     max_brokers = pm.Number(5, doc="maximum number of brokers that can join")
+    buffer_period = pm.Number(5, doc="minimum number of epochs for a condition to trigger the cancellation of the proposal inverter")
     broker_agreements = pm.Dict(dict(), doc="maps each broker's public key to their broker agreement")
     owner = str()
     
@@ -152,6 +154,21 @@ class ProposalInverter(Wallet):
                 broker_agreement.allocated_funds += self.get_broker_claimable_funds()
 
             self.current_epoch += 1
+        """
+        There may conditions under which any address may trigger the cancel but these conditions should be 
+        indicative of a failure on the part of the payer. An example policy would be to allow forced cancel 
+        when n < nmin and H < H min, and possibly only if this is the case more multiple epochs.
+        """
+        if self.number_of_brokers() < self.min_brokers and self.get_horizon() < self.min_horizon:
+            # Use cancel_epoch to record when the cancellation condition was triggered
+            # If cancel_epoch = 0 & cancellation conditions are met, then update cancel_epoch
+            if self.cancel_epoch == 0: 
+                self.cancel_epoch = self.current_epoch
+            elif (self.current_epoch - self.cancel_epoch) <= self.buffer_period:
+                return
+            # If the forced cancellation conditions are met for a period longer than the buffer period, trigger the cancel function
+            elif (self.current_epoch - self.cancel_epoch) > self.buffer_period:
+                self.cancel()
 
     def number_of_brokers(self):
         return len(self.committed_brokers)
