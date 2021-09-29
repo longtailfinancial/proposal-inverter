@@ -148,17 +148,17 @@ class ProposalInverter(Wallet):
     def iter_epoch(self, n_epochs=1):
         """
         Iterates to the next epoch and updates the total claimable funds for each broker.
+
+        There may conditions under which any address may trigger the cancel but these conditions should be 
+        indicative of a failure on the part of the payer. An example policy would be to allow forced cancel 
+        when n < nmin and H < H min, and possibly only if this is the case more multiple epochs.
         """
         for epoch in range(n_epochs):
             for public, broker_agreement in self.broker_agreements.items():
                 broker_agreement.allocated_funds += self.get_broker_claimable_funds()
 
             self.current_epoch += 1
-        """
-        There may conditions under which any address may trigger the cancel but these conditions should be 
-        indicative of a failure on the part of the payer. An example policy would be to allow forced cancel 
-        when n < nmin and H < H min, and possibly only if this is the case more multiple epochs.
-        """
+
         if self.number_of_brokers() < self.min_brokers and self.get_horizon() < self.min_horizon:
             # Use cancel_epoch to record when the cancellation condition was triggered
             # If cancel_epoch = 0 & cancellation conditions are met, then update cancel_epoch
@@ -244,8 +244,8 @@ class Owner(Wallet):
         of this draft, it is assumed that the contract is initialized with some quantity of funds F such that H>Hmin 
         and that B=∅.
         """
-        if not agreement_contract_params:
-            agreement_contract_params = self._default_agreement_contract_params()
+        params = self._default_agreement_contract_params()
+        params.update(agreement_contaract_params)
             
         # Check imposed restrictions (whether horizon is greater than the min horizon)
         horizon = initial_funds / agreement_contract_params['allocation_per_epoch']
