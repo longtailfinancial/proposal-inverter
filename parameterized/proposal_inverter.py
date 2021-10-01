@@ -133,7 +133,7 @@ class ProposalInverter(Wallet):
         if broker_agreement is None:
             print("Broker is not part of this proposal")
         else:
-            if self.current_epoch - broker_agreement.epoch_joined >= self.min_epochs and self.get_horizon() < self.min_horizon:
+            if self.current_epoch - broker_agreement.epoch_joined >= self.min_epochs:
                 stake = broker_agreement.initial_stake
                 broker.funds += stake
                 self.funds -= stake

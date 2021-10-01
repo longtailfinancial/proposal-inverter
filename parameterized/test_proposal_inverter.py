@@ -42,6 +42,10 @@ def test_add_broker(inverter, broker1):
 
 
 def test_claim_broker_funds(inverter, broker1, broker2):
+    """
+    Test that the brokers receive the correct amounts of funds when they claim their funds before the minimum number of
+    epochs.
+    """
     # Add broker to proposal inverter
     broker1 = inverter.add_broker(broker1, 50)
 
@@ -74,6 +78,10 @@ def test_claim_broker_funds(inverter, broker1, broker2):
 
     
 def test_remove_broker(inverter, broker1, broker2):
+    """
+    Ensure that when a broker leaves the proposal inverter, they receive their stake if they have stayed for the minimum
+    number of epochs.
+    """
     # Add brokers
     broker1 = inverter.add_broker(broker1, 100)
     broker2 = inverter.add_broker(broker2, 100)
@@ -81,14 +89,22 @@ def test_remove_broker(inverter, broker1, broker2):
     assert inverter.number_of_brokers() == 2
     assert inverter.funds == 700
 
-    # Remove a broker while over the minimum horizon
-    inverter.iter_epoch(30)
+    inverter.iter_epoch(20)
 
     broker1 = inverter.remove_broker(broker1)
 
     assert inverter.number_of_brokers() == 1
-    assert inverter.funds == 550
-    assert broker1.funds == 150
+    assert inverter.funds == 600
+    assert broker1.funds == 100
+
+    # Remove a broker while over the minimum number of epochs
+    inverter.iter_epoch(10)
+
+    broker2 = inverter.remove_broker(broker2)
+
+    assert inverter.number_of_brokers() == 0
+    assert inverter.funds == 300
+    assert broker2.funds == 300
 
     
 def test_get_allocated_funds(inverter, broker1, broker2):
