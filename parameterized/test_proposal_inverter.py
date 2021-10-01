@@ -1,34 +1,48 @@
+import pytest
+
 from proposal_inverter import Owner, Broker, ProposalInverter
-    
-    
-def test_add_broker():
-    # Deploy proposal inverter
+
+
+@pytest.fixture
+def inverter():
     owner = Owner()
     owner.funds = 1000
     inverter = owner.deploy(500)
 
-    # Add broker to proposal inverter
-    broker = Broker()
-    broker.funds = 100
+    return inverter
 
-    broker = inverter.add_broker(broker, 50)
+
+@pytest.fixture
+def broker1():
+    broker1 = Broker()
+    broker1.funds = 100
+
+    return broker1
+
+
+@pytest.fixture
+def broker2():
+    broker2 = Broker()
+    broker2.funds = 100
+
+    return broker2
+    
+    
+def test_add_broker(inverter, broker1):
+    """"
+    Simple test to add a single broker and check the properties of the proposal inverter.
+    """
+    # Add broker to proposal inverter
+    broker1 = inverter.add_broker(broker1, 50)
 
     assert inverter.funds == 550
     assert inverter.number_of_brokers() == 1
 
-    assert broker.funds == 50
+    assert broker1.funds == 50
 
 
-def test_claim_broker_funds():
-    # Deploy proposal inverter
-    owner = Owner()
-    owner.funds = 1000
-    inverter = owner.deploy(500)
-
+def test_claim_broker_funds(inverter, broker1, broker2):
     # Add broker to proposal inverter
-    broker1 = Broker()
-    broker1.funds = 100
-
     broker1 = inverter.add_broker(broker1, 50)
 
     # Make a claim before the minimum number of epochs
@@ -40,9 +54,6 @@ def test_claim_broker_funds():
     assert broker1.funds == 150
 
     # Add a second broker
-    broker2 = Broker()
-    broker2.funds = 100
-
     broker2 = inverter.add_broker(broker2, 50)
 
     # Make a claim before the minimum number of epochs
@@ -62,19 +73,8 @@ def test_claim_broker_funds():
     assert broker1.funds == 250
 
     
-def test_remove_broker():
-    # Deploy proposal inverter
-    owner = Owner()
-    owner.funds = 1000
-    inverter = owner.deploy(500)
-
+def test_remove_broker(inverter, broker1, broker2):
     # Add brokers
-    broker1 = Broker()
-    broker2 = Broker()
-
-    broker1.funds = 100
-    broker2.funds = 100
-    
     broker1 = inverter.add_broker(broker1, 100)
     broker2 = inverter.add_broker(broker2, 100)
 
@@ -91,24 +91,15 @@ def test_remove_broker():
     assert broker1.funds == 150
 
     
-def test_get_allocated_funds():
-    # Deploy proposal inverter
-    owner = Owner()
-    owner.funds = 1000
-    inverter = owner.deploy(500)
-
+def test_get_allocated_funds(inverter, broker1, broker2):
     assert inverter.get_allocated_funds() == 0
 
     # Add broker
-    broker1 = Broker()
-    broker1.funds = 100
     broker1 = inverter.add_broker(broker1, 100)
 
     # Add a second broker
     inverter.iter_epoch(10)
 
-    broker2 = Broker()
-    broker2.funds = 100
     broker2 = inverter.add_broker(broker2, 100)
 
     assert inverter.funds == 700
@@ -120,32 +111,15 @@ def test_get_allocated_funds():
     assert inverter.get_allocated_funds() == 300
 
 
-def test_pay():
-    # Deploy proposal inverter
-    owner = Owner()
-    owner.funds = 1000
-    inverter = owner.deploy(500)
+def test_pay(inverter, broker1):
+    broker1 = inverter.pay(broker1, 25)
 
-    payer = Broker()
-    payer.funds = 100
-
-    payer = inverter.pay(payer, 25)
-
-    assert payer.funds == 75
+    assert broker1.funds == 75
     assert inverter.funds == 525
 
     
-def test_cancel():
-    # Deploy proposal inverter
-    owner = Owner()
-    owner.funds = 1000
-    inverter = owner.deploy(500)
-    
+def test_cancel(inverter, broker1, broker2):
     # Add brokers (each with a different initial stake)
-    broker1 = Broker()
-    broker2 = Broker()
-    broker1.funds = 100
-    broker2.funds = 100
     broker1 = inverter.add_broker(broker1, 50)
     broker2 = inverter.add_broker(broker2, 100)
     
@@ -172,7 +146,7 @@ def test_cancel():
     assert inverter.get_allocated_funds() == 0
 
     
-def test_forced_cancel_case1():
+def test_forced_cancel_case1(broker1):
     """
     First test case involves using an inverter where the minimum number of brokers is 2. If only one broker joins and
     the minimum horizon is reached, then the forced cancel should be triggered and all remaining funds should be
@@ -184,10 +158,7 @@ def test_forced_cancel_case1():
     inverter = owner.deploy(100, min_brokers=2)
 
     # Add broker
-    broker = Broker()
-    broker.funds = 100
-
-    broker = inverter.add_broker(broker, 10)
+    broker1 = inverter.add_broker(broker1, 10)
 
     # Iterate past the buffer period to trigger the forced cancel
     inverter.iter_epoch(10)
@@ -197,7 +168,7 @@ def test_forced_cancel_case1():
     assert inverter.get_allocated_funds() == inverter.funds
 
 
-def test_forced_cancel_case2():
+def test_forced_cancel_case2(broker1):
     """
     Second test case occurs when the inverter is below the minimum horizon and all brokers leave. In this case, there
     are no brokers to allocate the funds to, so when the forced cancel is triggered, all funds should be returned to the
@@ -207,17 +178,14 @@ def test_forced_cancel_case2():
     owner = Owner()
     owner.funds = 1000
     inverter = owner.deploy(100)
-
+    
     # Add broker
-    broker = Broker()
-    broker.funds = 100
-
-    broker = inverter.add_broker(broker, 9)
+    broker1 = inverter.add_broker(broker1, 9)
 
     # Dip below the minimum conditions
     inverter.iter_epoch(5)
 
-    broker = inverter.remove_broker(broker)
+    broker1 = inverter.remove_broker(broker1)
 
     # Iterate past the buffer period
     inverter.iter_epoch(6)
@@ -227,7 +195,7 @@ def test_forced_cancel_case2():
     assert inverter.get_allocated_funds() == inverter.funds
 
 
-def test_forced_cancel_case3():
+def test_forced_cancel_case3(broker1, broker2):
     """
     Third test case is to ensure the forced cancel counter resets if the inverter is no longer under the minimum
     conditions. The inverter dips below the minimum conditions for a few epochs less than the specified buffer period,
@@ -240,9 +208,6 @@ def test_forced_cancel_case3():
     inverter = owner.deploy(100, min_brokers=2)
 
     # Add brokers
-    broker1 = Broker()
-    broker1.funds = 100
-
     broker1 = inverter.add_broker(broker1, 10)
 
     # Dip below minimum conditions but before the forced cancel triggers
@@ -253,9 +218,6 @@ def test_forced_cancel_case3():
     assert inverter.get_allocated_funds() < inverter.funds
 
     # Add a second broker and funds to meet the minimum conditions again
-    broker2 = Broker()
-    broker2.funds = 100
-
     broker2 = inverter.add_broker(broker2, 60)
 
     assert inverter.number_of_brokers() >= inverter.min_brokers
