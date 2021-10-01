@@ -41,7 +41,7 @@ class ProposalInverter(Wallet):
     # Parameters
     min_stake = pm.Number(5, doc="minimum funds that a broker must stake to join")
     current_epoch = pm.Number(0, doc="number of epochs that have passed")
-    cancel_epoch = pm.Number(0, doc="epoch where cancellation conditions have been met")
+    cancel_epoch = pm.Number(0, doc="last epoch where minimum conditions were been met")
     epoch_length = pm.Number(60*60*24, doc="length of one epoch, measured in seconds")
     min_epochs = pm.Number(28, doc="minimum number of epochs that must pass for a broker to exit and take their stake")
     allocation_per_epoch = pm.Number(10, doc="funds allocated to all brokers per epoch")
@@ -50,7 +50,6 @@ class ProposalInverter(Wallet):
     max_brokers = pm.Number(5, doc="maximum number of brokers that can join")
     buffer_period = pm.Number(5, doc="minimum number of epochs for a condition to trigger the cancellation of the proposal inverter")
     broker_agreements = pm.Dict(dict(), doc="maps each broker's public key to their broker agreement")
-    owner = str()
     
     def __init__(self, owner: Wallet, initial_funds: float, **params):
         super(ProposalInverter, self).__init__(**params)
@@ -157,18 +156,15 @@ class ProposalInverter(Wallet):
             for public, broker_agreement in self.broker_agreements.items():
                 broker_agreement.allocated_funds += self.get_broker_claimable_funds()
 
-            self.current_epoch += 1
-
-        if self.number_of_brokers() < self.min_brokers and self.get_horizon() < self.min_horizon:
             # Use cancel_epoch to record when the cancellation condition was triggered
-            # If cancel_epoch = 0 & cancellation conditions are met, then update cancel_epoch
-            if self.cancel_epoch == 0: 
+            if self.number_of_brokers() >= self.min_brokers or self.get_horizon() >= self.min_horizon:
                 self.cancel_epoch = self.current_epoch
-            elif (self.current_epoch - self.cancel_epoch) <= self.buffer_period:
-                return
+
             # If the forced cancellation conditions are met for a period longer than the buffer period, trigger the cancel function
-            elif (self.current_epoch - self.cancel_epoch) > self.buffer_period:
+            if (self.current_epoch - self.cancel_epoch) > self.buffer_period:
                 self.cancel()
+
+            self.current_epoch += 1
 
     def number_of_brokers(self):
         return len(self.committed_brokers)
@@ -221,6 +217,14 @@ class ProposalInverter(Wallet):
 
         for public_key, broker_agreement in self.broker_agreements.items():
             broker_agreement.allocated_funds += broker_agreement.initial_stake + (self.funds - total_stake - total_allocated_funds) / self.number_of_brokers()
+
+        # If there are no brokers attached to the proposal inverter, return funds to owner
+        self.broker_agreements[self.owner_address] = BrokerAgreement(
+            epoch_joined=self.current_epoch,
+            initial_stake=0,
+            allocated_funds=self.funds - self.get_allocated_funds(),
+            total_claimed=0           
+        )
     
     
 class Owner(Wallet):
@@ -236,7 +240,7 @@ class Owner(Wallet):
         )
         return params
     
-    def deploy(self, initial_funds, agreement_contract_params={}):
+    def deploy(self, initial_funds, **agreement_contract_params):
         """
         An actor within the ecosystem can deploy a new agreement contract by specifying which proposal the agreement 
         supports, setting the parameters of the smart contract providing initial funds, and providing any (unenforced) 
@@ -245,18 +249,18 @@ class Owner(Wallet):
         and that B=∅.
         """
         params = self._default_agreement_contract_params()
-        params.update(agreement_contaract_params)
+        params.update(agreement_contract_params)
             
         # Check imposed restrictions (whether horizon is greater than the min horizon)
-        horizon = initial_funds / agreement_contract_params['allocation_per_epoch']
-        if horizon < agreement_contract_params['min_horizon']:
+        horizon = initial_funds / params['allocation_per_epoch']
+        if horizon < params['min_horizon']:
             print("The Horizon is lower than the mininum required horizon")
             return None
 
         agreement_contract = ProposalInverter(
                 owner = self,
                 initial_funds = initial_funds,
-                **agreement_contract_params,
+                **params,
             )
         
         return agreement_contract
