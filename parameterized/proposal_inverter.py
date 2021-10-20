@@ -72,7 +72,7 @@ class Wallet(pm.Parameterized):
         # This function relies on there being given a broker_pool that keeps track of brokers
         
         # Calculate the total allocated funds & total stake for proper calculation
-        agreement_contract.cancel()
+        agreement_contract.cancel(self.public)
 
         for broker_key in broker_pool:
             broker_pool[broker_key] = agreement_contract.claim_broker_funds(broker_pool[broker_key])
@@ -217,7 +217,7 @@ class ProposalInverter(Wallet):
 
             # If the forced cancellation conditions are met for a period longer than the buffer period, trigger the cancel function
             if (self.current_epoch - self.cancel_epoch) > self.buffer_period:
-                self.cancel()
+                self.cancel(self.owner_address)
 
             self.current_epoch += 1
 
@@ -252,7 +252,7 @@ class ProposalInverter(Wallet):
         self.funds += tokens
         return broker
     
-    def cancel(self, owner: Wallet):
+    def cancel(self, owner_address: str):
         """
         In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any 
         unclaimed tokens allocated to their address as well an equal share of the remaining unallocated assets.
@@ -267,7 +267,7 @@ class ProposalInverter(Wallet):
 
         when the contract is self-destructed.
         """
-        if owner.public != self.owner_address:
+        if owner_address != self.owner_address:
             print("Only the owner can cancel a proposal")
         else:
             total_stake = sum([broker_agreement.initial_stake for broker_agreement in self.broker_agreements.values()])
