@@ -14,17 +14,72 @@ def generate_eth_account():
 
 class Wallet(pm.Parameterized):
     funds = pm.Number(100)
+
     def __init__(self, **params):
         super(Wallet, self).__init__(**params)
         (private, public) = generate_eth_account()
         self.private = private
         self.public = public
-        
-        
-class Broker(Wallet):
-    pass
 
+    def _default_agreement_contract_params(self):
+        params = dict(
+            min_stake = 5,
+            epoch_length = 60*60*24,
+            min_epochs = 28,
+            allocation_per_epoch = 10,
+            min_horizon = 7,
+            min_brokers = 1,
+            max_brokers = 5,
+        )
+        return params
+    
+    def deploy(self, initial_funds, **agreement_contract_params):
+        """
+        An actor within the ecosystem can deploy a new agreement contract by specifying which proposal the agreement 
+        supports, setting the parameters of the smart contract providing initial funds, and providing any (unenforced) 
+        commitment to continue topping up the contract as payer under as long as a set of SLAs are met. For the purpose 
+        of this draft, it is assumed that the contract is initialized with some quantity of funds F such that H>Hmin 
+        and that B=∅.
+        """
+        params = self._default_agreement_contract_params()
+        params.update(agreement_contract_params)
+            
+        # Check imposed restrictions (whether horizon is greater than the min horizon)
+        horizon = initial_funds / params['allocation_per_epoch']
+        if horizon < params['min_horizon']:
+            print("The Horizon is lower than the mininum required horizon")
+            return None
 
+        agreement_contract = ProposalInverter(
+                owner = self,
+                initial_funds = initial_funds,
+                **params,
+            )
+        
+        return agreement_contract
+        
+    def cancel(self, agreement_contract, broker_pool):
+        """
+        In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any 
+        unclaimed tokens allocated to their address as well an equal share of the remaining unallocated assets.
+        
+        That is to say the quantity Δdi of data tokens is distributed to each broker i∈B
+        Δdi=si+ai+(R/N)
+        and thus the penultimate financial state of the contract is
+        S=0, R=0, A=0
+        when the contract is self-destructed.
+        """
+        # This function relies on there being given a broker_pool that keeps track of brokers
+        
+        # Calculate the total allocated funds & total stake for proper calculation
+        agreement_contract.cancel()
+
+        for broker_key in broker_pool:
+            broker_pool[broker_key] = agreement_contract.claim_broker_funds(broker_pool[broker_key])
+
+        return broker_pool
+       
+        
 class BrokerAgreement(pm.Parameterized):
     """
     Stores data about a broker in the proposal inverter.
@@ -60,7 +115,7 @@ class ProposalInverter(Wallet):
 
         self.committed_brokers = set()
     
-    def add_broker(self, broker: Broker, stake: float):
+    def add_broker(self, broker: Wallet, stake: float):
         """
         A broker can join the agreement (and must also join the stream associated with that agreement) by staking the
         minimum stake.
@@ -91,7 +146,7 @@ class ProposalInverter(Wallet):
 
         return broker
 
-    def claim_broker_funds(self, broker: Broker):
+    def claim_broker_funds(self, broker: Wallet):
         """
         A broker that is attached to an agreement can claim their accumulated rewards at their discretion.
 
@@ -117,7 +172,7 @@ class ProposalInverter(Wallet):
 
         return broker
 
-    def remove_broker(self, broker: Broker):
+    def remove_broker(self, broker: Wallet):
         """
         In the event that the horizon is below the threshold or a broker has been attached to the agreement for more than
         the minimum epochs, a broker may exit an agreement and take their stake (and outstanding claims).
@@ -184,7 +239,7 @@ class ProposalInverter(Wallet):
         """
         return (self.funds - self.get_allocated_funds()) / self.allocation_per_epoch
     
-    def pay(self, broker: Broker, tokens):
+    def pay(self, broker: Wallet, tokens):
         """
         A payer takes the action pay by providing a quantity of tokens (split into Stablecoins and DAO tokens) 
         ΔF, which increased the unallocated funds (and thus also the total funds).
@@ -197,7 +252,7 @@ class ProposalInverter(Wallet):
         self.funds += tokens
         return broker
     
-    def cancel(self):
+    def cancel(self, owner: Wallet):
         """
         In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any 
         unclaimed tokens allocated to their address as well an equal share of the remaining unallocated assets.
@@ -211,78 +266,21 @@ class ProposalInverter(Wallet):
         S=0R=0A=0
 
         when the contract is self-destructed.
-        """    
-        total_stake = sum([broker_agreement.initial_stake for broker_agreement in self.broker_agreements.values()])
-        total_allocated_funds = self.get_allocated_funds()
-
-        for public_key, broker_agreement in self.broker_agreements.items():
-            broker_agreement.allocated_funds += broker_agreement.initial_stake + (self.funds - total_stake - total_allocated_funds) / self.number_of_brokers()
-
-        # If there are no brokers attached to the proposal inverter, return funds to owner
-        self.broker_agreements[self.owner_address] = BrokerAgreement(
-            epoch_joined=self.current_epoch,
-            initial_stake=0,
-            allocated_funds=self.funds - self.get_allocated_funds(),
-            total_claimed=0           
-        )
-    
-    
-class Owner(Wallet):
-    def _default_agreement_contract_params(self):
-        params = dict(
-            min_stake = 5,
-            epoch_length = 60*60*24,
-            min_epochs = 28,
-            allocation_per_epoch = 10,
-            min_horizon = 7,
-            min_brokers = 1,
-            max_brokers = 5,
-        )
-        return params
-    
-    def deploy(self, initial_funds, **agreement_contract_params):
         """
-        An actor within the ecosystem can deploy a new agreement contract by specifying which proposal the agreement 
-        supports, setting the parameters of the smart contract providing initial funds, and providing any (unenforced) 
-        commitment to continue topping up the contract as payer under as long as a set of SLAs are met. For the purpose 
-        of this draft, it is assumed that the contract is initialized with some quantity of funds F such that H>Hmin 
-        and that B=∅.
-        """
-        params = self._default_agreement_contract_params()
-        params.update(agreement_contract_params)
-            
-        # Check imposed restrictions (whether horizon is greater than the min horizon)
-        horizon = initial_funds / params['allocation_per_epoch']
-        if horizon < params['min_horizon']:
-            print("The Horizon is lower than the mininum required horizon")
-            return None
+        if owner.public != self.owner_address:
+            print("Only the owner can cancel a proposal")
+        else:
+            total_stake = sum([broker_agreement.initial_stake for broker_agreement in self.broker_agreements.values()])
+            total_allocated_funds = self.get_allocated_funds()
 
-        agreement_contract = ProposalInverter(
-                owner = self,
-                initial_funds = initial_funds,
-                **params,
+            for public_key, broker_agreement in self.broker_agreements.items():
+                broker_agreement.allocated_funds += broker_agreement.initial_stake + (self.funds - total_stake - total_allocated_funds) / self.number_of_brokers()
+
+            # If there are no brokers attached to the proposal inverter, return funds to owner
+            self.broker_agreements[self.owner_address] = BrokerAgreement(
+                epoch_joined=self.current_epoch,
+                initial_stake=0,
+                allocated_funds=self.funds - self.get_allocated_funds(),
+                total_claimed=0           
             )
-        
-        return agreement_contract
-        
-    def cancel(self, agreement_contract, broker_pool):
-        """
-        In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any 
-        unclaimed tokens allocated to their address as well an equal share of the remaining unallocated assets.
-        
-        That is to say the quantity Δdi of data tokens is distributed to each broker i∈B
-        Δdi=si+ai+(R/N)
-        and thus the penultimate financial state of the contract is
-        S=0, R=0, A=0
-        when the contract is self-destructed.
-        """
-        # This function relies on there being given a broker_pool that keeps track of brokers
-        
-        # Calculate the total allocated funds & total stake for proper calculation
-        agreement_contract.cancel()
-
-        for broker_key in broker_pool:
-            broker_pool[broker_key] = agreement_contract.claim_broker_funds(broker_pool[broker_key])
-
-        return broker_pool
-
+    
