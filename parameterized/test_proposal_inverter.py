@@ -1,12 +1,18 @@
 import pytest
 
-from proposal_inverter import Owner, Broker, ProposalInverter
+from .proposal_inverter import Wallet, ProposalInverter
 
 
 @pytest.fixture
-def inverter():
-    owner = Owner()
+def owner():
+    owner = Wallet()
     owner.funds = 1000
+
+    return owner
+
+
+@pytest.fixture
+def inverter(owner):
     inverter = owner.deploy(500)
 
     return inverter
@@ -14,7 +20,7 @@ def inverter():
 
 @pytest.fixture
 def broker1():
-    broker1 = Broker()
+    broker1 = Wallet()
     broker1.funds = 100
 
     return broker1
@@ -22,10 +28,18 @@ def broker1():
 
 @pytest.fixture
 def broker2():
-    broker2 = Broker()
+    broker2 = Wallet()
     broker2.funds = 100
 
     return broker2
+
+
+@pytest.fixture
+def payer():
+    payer = Wallet()
+    payer.funds = 100
+
+    return payer
     
     
 def test_add_broker(inverter, broker1):
@@ -127,14 +141,14 @@ def test_get_allocated_funds(inverter, broker1, broker2):
     assert inverter.get_allocated_funds() == 300
 
 
-def test_pay(inverter, broker1):
-    broker1 = inverter.pay(broker1, 25)
+def test_pay(inverter, payer):
+    payer = inverter.pay(payer, 25)
 
-    assert broker1.funds == 75
+    assert payer.funds == 75
     assert inverter.funds == 525
 
     
-def test_cancel(inverter, broker1, broker2):
+def test_cancel(owner, inverter, broker1, broker2):
     # Add brokers (each with a different initial stake)
     broker1 = inverter.add_broker(broker1, 50)
     broker2 = inverter.add_broker(broker2, 100)
@@ -145,7 +159,7 @@ def test_cancel(inverter, broker1, broker2):
     inverter.iter_epoch(30)
     
     # Cancel the proposal inverter
-    inverter.cancel()
+    inverter.cancel(owner.public)
 
     # Each broker makes their claim
     broker1 = inverter.claim_broker_funds(broker1)
@@ -169,7 +183,7 @@ def test_forced_cancel_case1(broker1):
     allocated to the single broker in the inverter.
     """
     # Deploy proposal inverter
-    owner = Owner()
+    owner = Wallet()
     owner.funds = 1000
     inverter = owner.deploy(100, min_brokers=2)
 
@@ -191,7 +205,7 @@ def test_forced_cancel_case2(broker1):
     owner.
     """
     # Deploy proposal inverter
-    owner = Owner()
+    owner = Wallet()
     owner.funds = 1000
     inverter = owner.deploy(100)
     
@@ -219,7 +233,7 @@ def test_forced_cancel_case3(broker1, broker2):
     cancel.
     """
     # Deploy proposal inverter
-    owner = Owner()
+    owner = Wallet()
     owner.funds = 1000
     inverter = owner.deploy(100, min_brokers=2)
 

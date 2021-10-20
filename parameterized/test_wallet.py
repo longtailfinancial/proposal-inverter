@@ -1,8 +1,8 @@
-from proposal_inverter import Owner, Broker
+from .proposal_inverter import Wallet
 
 
 def test_deploy_proposal_inverter():
-    owner = Owner()
+    owner = Wallet()
     owner.funds = 1000
     inverter = owner.deploy(500)
 
@@ -13,13 +13,13 @@ def test_deploy_proposal_inverter():
 
 def test_remove_proposal_inverter():
     # Deploy proposal inverter
-    owner = Owner()
+    owner = Wallet()
     owner.funds = 1000
     inverter = owner.deploy(500)
     
     # Add brokers (each with a different initial stake)
-    broker1 = Broker()
-    broker2 = Broker()
+    broker1 = Wallet()
+    broker2 = Wallet()
     broker1.funds = 100
     broker2.funds = 100
     broker1 = inverter.add_broker(broker1, 50)
