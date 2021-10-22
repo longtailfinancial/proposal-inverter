@@ -1,7 +1,7 @@
 import abc
 import param as pm
 
-from proposal_inverter import Wallet, ProposalInverter
+from .proposal_inverter import Wallet, ProposalInverter
 
 
 class WhitelistMechanism(pm.Parameterized):
@@ -16,26 +16,25 @@ class WhitelistMechanism(pm.Parameterized):
     @abc.abstractmethod
     def vote(self, proposal: ProposalInverter, voter: Wallet, broker: Wallet, vote: bool):
         if broker.public not in self.whitelist:
-            self.waitlist(broker)
+            self.add_waitlist(broker)
             self.votes[broker.public][voter.public] = vote
 
-    def waitlist(self, broker: Wallet):
-        if broker.public not in self.whitelist and broker.public not in self.waitlist.keys():
+    def add_waitlist(self, broker: Wallet):
+        if broker.public not in self.whitelist and broker.public not in self.waitlist:
+            self.waitlist.add(broker.public)
             self.votes[broker.public] = dict()
 
-    def whitelist(self, broker: Wallet):
+    def add_whitelist(self, broker: Wallet):
+        self.waitlist.remove(broker.public)
         self.whitelist.add(broker.public)
 
-        if broker.public in self.waitlist.keys():
-            del self.waitlist[broker.public]
 
-
-class OwnerVoteOnly(WhitelistMechanism):
+class OwnerVote(WhitelistMechanism):
     def vote(self, proposal: ProposalInverter, voter: Wallet, broker: Wallet, vote: bool):
         super().vote(proposal, voter, broker, vote)
 
         if voter.public == proposal.owner_address and vote is True:
-            self.whitelist(broker)
+            self.add_whitelist(broker)
 
 
 class PayerVote(WhitelistMechanism):
@@ -43,7 +42,7 @@ class PayerVote(WhitelistMechanism):
         super().vote(proposal, voter, broker, vote)
 
         if voter.public in proposal.payer_contributions.keys() and vote is True:
-            self.whitelist(broker)
+            self.add_whitelist(broker)
 
 
 class EqualVote(WhitelistMechanism):
@@ -52,11 +51,13 @@ class EqualVote(WhitelistMechanism):
     def vote(self, proposal: ProposalInverter, voter: Wallet, broker: Wallet, vote: bool):
         super().vote(proposal, voter, broker, vote)
 
-        vote = sum([1 * vote in self.votes[broker.public].items()])
+        print(self.votes)
+
+        vote = sum([1 * vote for vote in self.votes[broker.public].values()])
         n_payers = len(proposal.payer_contributions)
 
         if vote / n_payers >= self.min_vote:
-            self.whitelist(broker)
+            self.add_whitelist(broker)
 
 
 class WeightedVote(WhitelistMechanism):
@@ -72,7 +73,7 @@ class WeightedVote(WhitelistMechanism):
         total_contributions = sum(proposal.payer_contributions.values())
 
         if weighted_vote / total_contributions >= self.min_vote:
-            self.whitelist(broker)
+            self.add_whitelist(broker)
 
 
 class ConsensusVote(WhitelistMechanism):
@@ -85,4 +86,4 @@ class ConsensusVote(WhitelistMechanism):
         ])
 
         if consensus:
-            self.whitelist(broker)
+            self.add_whitelist(broker)
