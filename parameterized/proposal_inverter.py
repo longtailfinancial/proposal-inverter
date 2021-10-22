@@ -1,7 +1,10 @@
 import param as pm
 import panel as pn
-from eth_account import Account
 import secrets
+
+from collections import defaultdict
+from eth_account import Account
+
 pn.extension()
 
 
@@ -33,7 +36,7 @@ class Wallet(pm.Parameterized):
         )
         return params
     
-    def deploy(self, initial_funds, **agreement_contract_params):
+    def deploy(self, initial_funds: float, **agreement_contract_params):
         """
         An actor within the ecosystem can deploy a new agreement contract by specifying which proposal the agreement 
         supports, setting the parameters of the smart contract providing initial funds, and providing any (unenforced) 
@@ -41,14 +44,17 @@ class Wallet(pm.Parameterized):
         of this draft, it is assumed that the contract is initialized with some quantity of funds F such that H>Hmin 
         and that B=∅.
         """
+        if self.funds < initial_funds:
+            print("Owner has insufficient funds to deploy proposal inverter")
+            return
+
         params = self._default_agreement_contract_params()
         params.update(agreement_contract_params)
             
         # Check imposed restrictions (whether horizon is greater than the min horizon)
         horizon = initial_funds / params['allocation_per_epoch']
         if horizon < params['min_horizon']:
-            print("The Horizon is lower than the mininum required horizon")
-            return None
+            print("Warning: proposal deploying with horizon that is lower than the mininum required")
 
         agreement_contract = ProposalInverter(
                 owner = self,
@@ -92,28 +98,34 @@ class BrokerAgreement(pm.Parameterized):
 
 class ProposalInverter(Wallet):
     # State
+    broker_agreements = pm.Dict(dict(), doc="maps each broker's public key to their broker agreement")
+    cancelled = pm.Boolean(False, doc="if the proposal has been cancelled, funds will no longer be allocated")
+    current_epoch = pm.Number(0, doc="number of epochs that have passed")
+    cancel_epoch = pm.Number(0, doc="last epoch where minimum conditions were been met")
+    payer_contributions = pm.Dict(defaultdict(int), doc="maps each payer's public key to their accumulated contribution")
     
     # Parameters
     min_stake = pm.Number(5, doc="minimum funds that a broker must stake to join")
-    current_epoch = pm.Number(0, doc="number of epochs that have passed")
-    cancel_epoch = pm.Number(0, doc="last epoch where minimum conditions were been met")
     epoch_length = pm.Number(60*60*24, doc="length of one epoch, measured in seconds")
     min_epochs = pm.Number(28, doc="minimum number of epochs that must pass for a broker to exit and take their stake")
     allocation_per_epoch = pm.Number(10, doc="funds allocated to all brokers per epoch")
     min_horizon = pm.Number(7, doc="minimum number of future epochs the proposal inverter can allocate funds for")
+    min_payers = pm.Number(1, doc="minimum number of payers that need to commit before any funds are released")
     min_brokers = pm.Number(1, doc="minimum number of brokers required to continue")
     max_brokers = pm.Number(5, doc="maximum number of brokers that can join")
     buffer_period = pm.Number(5, doc="minimum number of epochs for a condition to trigger the cancellation of the proposal inverter")
-    broker_agreements = pm.Dict(dict(), doc="maps each broker's public key to their broker agreement")
     
     def __init__(self, owner: Wallet, initial_funds: float, **params):
         super(ProposalInverter, self).__init__(**params)
+
         self.owner_address = owner.public
-        if owner.funds >= initial_funds:
-            owner.funds -= initial_funds
-            self.funds = initial_funds
+        owner.funds -= initial_funds
+        self.funds = initial_funds
+        self.payer_contributions[owner.public] = initial_funds
 
         self.committed_brokers = set()
+
+        self.started = self._minimum_start_conditions_met()
     
     def add_broker(self, broker: Wallet, stake: float):
         """
@@ -133,6 +145,8 @@ class ProposalInverter(Wallet):
             print("Failed to add broker, maximum number of brokers reached")
         elif stake < self.min_stake:
             print("Failed to add broker, minimum stake not met")
+        elif self.cancelled:
+            print("Failed to add broker, proposal has been cancelled")
         else:
             broker.funds -= stake
             self.funds += stake
@@ -199,7 +213,7 @@ class ProposalInverter(Wallet):
 
         return broker
 
-    def iter_epoch(self, n_epochs=1):
+    def iter_epoch(self, n_epochs: int=1):
         """
         Iterates to the next epoch and updates the total claimable funds for each broker.
 
@@ -208,18 +222,29 @@ class ProposalInverter(Wallet):
         when n < nmin and H < H min, and possibly only if this is the case more multiple epochs.
         """
         for epoch in range(n_epochs):
-            for public, broker_agreement in self.broker_agreements.items():
-                broker_agreement.allocated_funds += self.get_broker_claimable_funds()
-
-            # Use cancel_epoch to record when the cancellation condition was triggered
-            if self.number_of_brokers() >= self.min_brokers or self.get_horizon() >= self.min_horizon:
-                self.cancel_epoch = self.current_epoch
-
-            # If the forced cancellation conditions are met for a period longer than the buffer period, trigger the cancel function
-            if (self.current_epoch - self.cancel_epoch) > self.buffer_period:
-                self.cancel(self.owner_address)
+            if not self.cancelled:
+                if self.started:
+                    self._allocate_funds()
+                else:
+                    self.started = self._minimum_start_conditions_met()
 
             self.current_epoch += 1
+
+    def _allocate_funds(self):
+        """
+        Allocates funds for one epoch to all the brokers and checks if the
+        conditions for a forced cancel has been triggered.
+        """
+        for public, broker_agreement in self.broker_agreements.items():
+            broker_agreement.allocated_funds += self.get_broker_claimable_funds()
+
+        # Use cancel_epoch to record when the cancellation condition was triggered
+        if self.number_of_brokers() >= self.min_brokers or self.get_horizon() >= self.min_horizon:
+            self.cancel_epoch = self.current_epoch
+
+        # If the forced cancellation conditions are met for a period longer than the buffer period, trigger the cancel function
+        if (self.current_epoch - self.cancel_epoch) > self.buffer_period:
+            self.cancel(self.owner_address)
 
     def number_of_brokers(self):
         return len(self.committed_brokers)
@@ -239,7 +264,7 @@ class ProposalInverter(Wallet):
         """
         return (self.funds - self.get_allocated_funds()) / self.allocation_per_epoch
     
-    def pay(self, broker: Wallet, tokens):
+    def pay(self, payer: Wallet, tokens: float):
         """
         A payer takes the action pay by providing a quantity of tokens (split into Stablecoins and DAO tokens) 
         ΔF, which increased the unallocated funds (and thus also the total funds).
@@ -248,9 +273,12 @@ class ProposalInverter(Wallet):
         Furthermore, the Horizon H is increased 
         H+ = (R + ΔF)/ ΔA = H + (ΔF/ΔA)
         """
-        broker.funds -= tokens
+        payer.funds -= tokens
         self.funds += tokens
-        return broker
+
+        self.payer_contributions[payer.public] += tokens
+
+        return payer
     
     def cancel(self, owner_address: str):
         """
@@ -283,4 +311,20 @@ class ProposalInverter(Wallet):
                 allocated_funds=self.funds - self.get_allocated_funds(),
                 total_claimed=0           
             )
+
+        self.cancelled = True
+
+    def _minimum_start_conditions_met(self):
+        """
+        Checks if the proposal currently meets the minimum start conditions. The
+        minimum start conditions are currently:
+
+        - If the specified minimum number of payers has been met
+        - If the specified minimum horizon has been met
+        """
+        min_payers_met = len(self.payer_contributions.keys()) >= self.min_payers
+        min_horizon_met = self.get_horizon() >= self.min_horizon
+
+        return min_payers_met and min_horizon_met
+
     
