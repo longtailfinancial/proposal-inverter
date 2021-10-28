@@ -1,7 +1,7 @@
 import pytest
 
 from .proposal_inverter import Wallet, ProposalInverter
-from .whitelist_mechanism import WhitelistMechanism, OwnerVote, PayerVote, EqualVote, WeightedVote, ConsensusVote
+from .whitelist_mechanism import NoVote, OwnerVote, PayerVote, EqualVote, WeightedVote, UnanimousVote
 
 
 @pytest.fixture
@@ -45,22 +45,30 @@ def broker():
     return broker
 
 
+def test_no_vote(owner, payer1, inverter, broker):
+    mechanism = NoVote()
+
+    # Votes should not impact whitelisting, and should whitelist all brokers
+    mechanism.vote(inverter, payer1, broker, False)
+
+    assert mechanism.in_waitlist(broker) == False
+    assert mechanism.in_whitelist(broker) == True
+
+
 def test_owner_vote(owner, payer1, inverter, broker):
     mechanism = OwnerVote()
 
     # Case where payer cannot whitelist a broker
     mechanism.vote(inverter, payer1, broker, True)
-    print(mechanism.waitlist)
-    print(mechanism.whitelist)
 
-    assert broker.public in mechanism.waitlist
-    assert broker.public not in mechanism.whitelist
+    assert mechanism.in_waitlist(broker) == True
+    assert mechanism.in_whitelist(broker) == False
 
     # Case where only the owner can whitelist a broker
     mechanism.vote(inverter, owner, broker, True)
 
-    assert broker.public not in mechanism.waitlist
-    assert broker.public in mechanism.whitelist
+    assert mechanism.in_waitlist(broker) == False
+    assert mechanism.in_whitelist(broker) == True
 
 
 def test_payer_vote(payer1, payer2, inverter, broker):
@@ -69,13 +77,13 @@ def test_payer_vote(payer1, payer2, inverter, broker):
     # Case where any payer can whitelist a broker and override a blacklist vote
     mechanism.vote(inverter, payer1, broker, False)
 
-    assert broker.public in mechanism.waitlist
-    assert broker.public not in mechanism.whitelist
+    assert mechanism.in_waitlist(broker) == True
+    assert mechanism.in_whitelist(broker) == False
 
     mechanism.vote(inverter, payer2, broker, True)
 
-    assert broker.public not in mechanism.waitlist
-    assert broker.public in mechanism .whitelist
+    assert mechanism.in_waitlist(broker) == False
+    assert mechanism.in_whitelist(broker) == True
 
 
 def test_equal_vote(payer1, payer2, inverter, broker):
@@ -83,13 +91,13 @@ def test_equal_vote(payer1, payer2, inverter, broker):
 
     mechanism.vote(inverter, payer1, broker, True)
 
-    assert broker.public in mechanism.waitlist
-    assert broker.public not in mechanism.whitelist
+    assert mechanism.in_waitlist(broker) == True
+    assert mechanism.in_whitelist(broker) == False
 
     mechanism.vote(inverter, payer2, broker, True)
 
-    assert broker.public not in mechanism.waitlist
-    assert broker.public in mechanism.whitelist
+    assert mechanism.in_waitlist(broker) == False
+    assert mechanism.in_whitelist(broker) == True
 
 
 def test_weighted_vote(payer1, payer2, inverter, broker):
@@ -99,28 +107,28 @@ def test_weighted_vote(payer1, payer2, inverter, broker):
     mechanism.vote(inverter, payer1, broker, True)
     mechanism.vote(inverter, payer2, broker, True)
 
-    assert broker.public in mechanism.waitlist
-    assert broker.public not in mechanism.whitelist
+    assert mechanism.in_waitlist(broker) == True
+    assert mechanism.in_whitelist(broker) == False
 
     # Case where a payer increases their funds to increase their weight
     payer1 = inverter.pay(payer1, 200)
 
     mechanism.vote(inverter, payer1, broker, True)
 
-    assert broker.public not in mechanism.waitlist
-    assert broker.public in mechanism.whitelist
+    assert mechanism.in_waitlist(broker) == False
+    assert mechanism.in_whitelist(broker) == True
 
 
-def test_consensus_vote(owner, payer1, payer2, inverter, broker):
-    mechanism = ConsensusVote()
+def test_unanimous_vote(owner, payer1, payer2, inverter, broker):
+    mechanism = UnanimousVote()
 
     mechanism.vote(inverter, payer1, broker, True)
     mechanism.vote(inverter, payer2, broker, True)
-    
-    assert broker.public in mechanism.waitlist
-    assert broker.public not in mechanism.whitelist
+
+    assert mechanism.in_waitlist(broker) == True
+    assert mechanism.in_whitelist(broker) == False    
 
     mechanism.vote(inverter, owner, broker, True)
 
-    assert broker.public not in mechanism.waitlist
-    assert broker.public in mechanism.whitelist
+    assert mechanism.in_waitlist(broker) == False
+    assert mechanism.in_whitelist(broker) == True
