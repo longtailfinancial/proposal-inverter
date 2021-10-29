@@ -61,7 +61,7 @@ def test_owner_vote(owner, payer1, inverter, broker):
     # Case where payer cannot whitelist a broker
     mechanism.vote(inverter, payer1, broker, True)
 
-    assert mechanism.in_waitlist(broker) == True
+    assert mechanism.in_waitlist(broker) == False
     assert mechanism.in_whitelist(broker) == False
 
     # Case where only the owner can whitelist a broker

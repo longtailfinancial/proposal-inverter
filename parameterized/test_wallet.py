@@ -1,10 +1,11 @@
 from .proposal_inverter import Wallet
+from .whitelist_mechanism import NoVote
 
 
 def test_deploy_proposal_inverter():
     owner = Wallet()
     owner.funds = 1000
-    inverter = owner.deploy(500)
+    inverter = owner.deploy(500, broker_whitelist=NoVote())
 
     assert inverter.funds == 500
     assert inverter.current_epoch == 0
@@ -15,7 +16,7 @@ def test_remove_proposal_inverter():
     # Deploy proposal inverter
     owner = Wallet()
     owner.funds = 1000
-    inverter = owner.deploy(500)
+    inverter = owner.deploy(500, broker_whitelist=NoVote())
     
     # Add brokers (each with a different initial stake)
     broker1 = Wallet()
