@@ -1,7 +1,7 @@
 import pytest
 
 from .proposal_inverter import Wallet, ProposalInverter
-from .whitelist_mechanism import NoVote
+from .whitelist_mechanism import NoVote, OwnerVote
 
 
 @pytest.fixture
@@ -239,3 +239,20 @@ def test_forced_cancel_case2(broker1, broker2, payer):
 
     assert inverter.get_horizon() < inverter.min_horizon
     assert inverter.get_allocated_funds() < inverter.funds
+
+
+def test_owner_vote(owner, broker1, payer):
+    inverter = owner.deploy(500, broker_whitelist=OwnerVote())
+
+    # Broker applies to proposal, but not yet whitelisted
+    broker1 = inverter.add_broker(broker1, 10)
+
+    assert broker1.funds == 100
+    assert inverter.number_of_brokers() == 0
+
+    # Owner whitelists broker
+    inverter.vote_broker(owner, broker1, True)
+    broker1 = inverter.add_broker(broker1, 10)
+
+    assert broker1.funds == 90
+    assert inverter.number_of_brokers() == 1
