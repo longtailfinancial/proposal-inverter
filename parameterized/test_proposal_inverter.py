@@ -1,6 +1,7 @@
 import pytest
 
 from .proposal_inverter import Wallet, ProposalInverter
+from .whitelist_mechanism import NoVote, OwnerVote
 
 
 @pytest.fixture
@@ -13,7 +14,7 @@ def owner():
 
 @pytest.fixture
 def inverter(owner):
-    inverter = owner.deploy(500)
+    inverter = owner.deploy(500, broker_whitelist=NoVote())
 
     return inverter
 
@@ -175,39 +176,17 @@ def test_cancel(owner, inverter, broker1, broker2):
     assert inverter.funds == 0
     assert inverter.get_allocated_funds() == 0
 
-    
+
 def test_forced_cancel_case1(broker1):
     """
-    First test case involves using an inverter where the minimum number of brokers is 2. If only one broker joins and
-    the minimum horizon is reached, then the forced cancel should be triggered and all remaining funds should be
-    allocated to the single broker in the inverter.
-    """
-    # Deploy proposal inverter
-    owner = Wallet()
-    owner.funds = 1000
-    inverter = owner.deploy(100, min_brokers=2)
-
-    # Add broker
-    broker1 = inverter.add_broker(broker1, 10)
-
-    # Iterate past the buffer period to trigger the forced cancel
-    inverter.iter_epoch(10)
-
-    assert inverter.number_of_brokers() < inverter.min_brokers
-    assert inverter.get_horizon() < inverter.min_horizon
-    assert inverter.get_allocated_funds() == inverter.funds
-
-
-def test_forced_cancel_case2(broker1):
-    """
-    Second test case occurs when the inverter is below the minimum horizon and all brokers leave. In this case, there
+    First test case occurs when the inverter is below the minimum horizon and all brokers leave. In this case, there
     are no brokers to allocate the funds to, so when the forced cancel is triggered, all funds should be returned to the
     owner.
     """
     # Deploy proposal inverter
     owner = Wallet()
     owner.funds = 1000
-    inverter = owner.deploy(100)
+    inverter = owner.deploy(100, broker_whitelist=NoVote())
     
     # Add broker
     broker1 = inverter.add_broker(broker1, 9)
@@ -225,9 +204,9 @@ def test_forced_cancel_case2(broker1):
     assert inverter.get_allocated_funds() == inverter.funds
 
 
-def test_forced_cancel_case3(broker1, broker2):
+def test_forced_cancel_case2(broker1, broker2, payer):
     """
-    Third test case is to ensure the forced cancel counter resets if the inverter is no longer under the minimum
+    Second test case is to ensure the forced cancel counter resets if the inverter is no longer under the minimum
     conditions. The inverter dips below the minimum conditions for a few epochs less than the specified buffer period,
     and the goes back up. The counter should reset, and then the inverter should dip back down and trigger the forced
     cancel.
@@ -235,34 +214,45 @@ def test_forced_cancel_case3(broker1, broker2):
     # Deploy proposal inverter
     owner = Wallet()
     owner.funds = 1000
-    inverter = owner.deploy(100, min_brokers=2)
+    inverter = owner.deploy(100, min_brokers=2, broker_whitelist=NoVote())
 
     # Add brokers
     broker1 = inverter.add_broker(broker1, 10)
+    broker2 = inverter.add_broker(broker2, 10)
+
+    assert inverter.funds == 120
+    assert inverter.get_horizon() >= inverter.min_horizon
 
     # Dip below minimum conditions but before the forced cancel triggers
     inverter.iter_epoch(6)
 
-    assert inverter.number_of_brokers() < inverter.min_brokers
     assert inverter.get_horizon() < inverter.min_horizon
     assert inverter.get_allocated_funds() < inverter.funds
 
     # Add a second broker and funds to meet the minimum conditions again
-    broker2 = inverter.add_broker(broker2, 60)
+    payer = inverter.pay(payer, 60)
 
     assert inverter.number_of_brokers() >= inverter.min_brokers
     assert inverter.get_horizon() >= inverter.min_horizon
 
-    # Dip below minimum conditions and trigger the forced cancel
-    broker1 = inverter.remove_broker(broker1)
-
     inverter.iter_epoch(6)
 
-    assert inverter.number_of_brokers() < inverter.min_brokers
     assert inverter.get_horizon() < inverter.min_horizon
     assert inverter.get_allocated_funds() < inverter.funds
 
-    inverter.iter_epoch(4)
 
-    assert inverter.get_allocated_funds() == inverter.funds
+def test_owner_vote(owner, broker1, payer):
+    inverter = owner.deploy(500, broker_whitelist=OwnerVote())
 
+    # Broker applies to proposal, but not yet whitelisted
+    broker1 = inverter.add_broker(broker1, 10)
+
+    assert broker1.funds == 100
+    assert inverter.number_of_brokers() == 0
+
+    # Owner whitelists broker
+    inverter.vote_broker(owner, broker1, True)
+    broker1 = inverter.add_broker(broker1, 10)
+
+    assert broker1.funds == 90
+    assert inverter.number_of_brokers() == 1

@@ -5,6 +5,8 @@ import secrets
 from collections import defaultdict
 from eth_account import Account
 
+from .whitelist_mechanism import WhitelistMechanism, NoVote, OwnerVote, PayerVote, EqualVote, WeightedVote, UnanimousVote
+
 pn.extension()
 
 
@@ -103,6 +105,8 @@ class ProposalInverter(Wallet):
     current_epoch = pm.Number(0, doc="number of epochs that have passed")
     cancel_epoch = pm.Number(0, doc="last epoch where minimum conditions were been met")
     payer_contributions = pm.Dict(defaultdict(int), doc="maps each payer's public key to their accumulated contribution")
+    broker_whitelist = pm.ClassSelector(WhitelistMechanism, default=OwnerVote())
+    payer_whitelist = pm.ClassSelector(WhitelistMechanism, default=NoVote())
     
     # Parameters
     min_stake = pm.Number(5, doc="minimum funds that a broker must stake to join")
@@ -126,7 +130,7 @@ class ProposalInverter(Wallet):
         self.committed_brokers = set()
 
         self.started = self._minimum_start_conditions_met()
-    
+
     def add_broker(self, broker: Wallet, stake: float):
         """
         A broker can join the agreement (and must also join the stream associated with that agreement) by staking the
@@ -147,7 +151,7 @@ class ProposalInverter(Wallet):
             print("Failed to add broker, minimum stake not met")
         elif self.cancelled:
             print("Failed to add broker, proposal has been cancelled")
-        else:
+        elif self.broker_whitelist.in_whitelist(broker):
             broker.funds -= stake
             self.funds += stake
             self.broker_agreements[broker.public] = BrokerAgreement(
@@ -157,6 +161,9 @@ class ProposalInverter(Wallet):
                 total_claimed=0
             )
             self.committed_brokers.add(broker)
+        else:
+            self.broker_whitelist.add_waitlist(broker)
+            print("Warning: broker not yet whitelisted, added to waitlist")
 
         return broker
 
@@ -223,10 +230,11 @@ class ProposalInverter(Wallet):
         """
         for epoch in range(n_epochs):
             if not self.cancelled:
+                if not self.started:
+                    self.started = self._minimum_start_conditions_met()
+
                 if self.started:
                     self._allocate_funds()
-                else:
-                    self.started = self._minimum_start_conditions_met()
 
             self.current_epoch += 1
 
@@ -239,7 +247,7 @@ class ProposalInverter(Wallet):
             broker_agreement.allocated_funds += self.get_broker_claimable_funds()
 
         # Use cancel_epoch to record when the cancellation condition was triggered
-        if self.number_of_brokers() >= self.min_brokers or self.get_horizon() >= self.min_horizon:
+        if self._minimum_start_conditions_met():
             self.cancel_epoch = self.current_epoch
 
         # If the forced cancellation conditions are met for a period longer than the buffer period, trigger the cancel function
@@ -273,10 +281,14 @@ class ProposalInverter(Wallet):
         Furthermore, the Horizon H is increased 
         H+ = (R + ΔF)/ ΔA = H + (ΔF/ΔA)
         """
-        payer.funds -= tokens
-        self.funds += tokens
+        if self.payer_whitelist.in_whitelist(payer):
+            payer.funds -= tokens
+            self.funds += tokens
 
-        self.payer_contributions[payer.public] += tokens
+            self.payer_contributions[payer.public] += tokens
+        else:
+            self.payer_whitelist.add_waitlist(payer)
+            print("Warning: payer not yet whitelisted, added to waitlist")
 
         return payer
     
@@ -322,9 +334,24 @@ class ProposalInverter(Wallet):
         - If the specified minimum number of payers has been met
         - If the specified minimum horizon has been met
         """
+        min_brokers_met = self.number_of_brokers() >= self.min_brokers
         min_payers_met = len(self.payer_contributions.keys()) >= self.min_payers
         min_horizon_met = self.get_horizon() >= self.min_horizon
 
-        return min_payers_met and min_horizon_met
+        return min_brokers_met and min_payers_met and min_horizon_met
 
-    
+    def vote_broker(self, voter: Wallet, broker: Wallet, vote: bool):
+        """
+        This is the outward facing interface to directly affect which brokers
+        are whitelisted. The actual mechanism is dependent on which whitelisting
+        mechanism is used.
+        """
+        self.broker_whitelist.vote(self, voter, broker, vote)
+
+    def vote_payer(self, voter: Wallet, payer: Wallet, vote: bool):
+        """
+        This is the outward facing interface to directly affect which payers are
+        whitelisted. The actual mechanism is dependent on which whitelisting
+        mechanism is used.
+        """
+        self.payer_whitelist.vote(self, voter, payer, vote)
