@@ -27,45 +27,82 @@ class WhitelistMechanism(pm.Parameterized):
         self.whitelist = set()
         self.waitlist = set()
 
-    @abstractmethod
-    def vote(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet", vote: bool):
-        """
-        This method should be overrided in all child classes.
-
-        `super().vote()` should be called in the overrided method when a vote is
-        cast.
-        """
-        if broker.public not in self.whitelist:
-            self.add_waitlist(broker)
-            self.votes[broker.public][voter.public] = vote
-
-    def add_waitlist(self, broker: "Wallet"):
+    def add_waitlist(self, broker: "Wallet") -> None:
         """
         Adds a broker to the waitlist if they are not already in the waitlist or
         whitelist.
         """
-        if not self.in_whitelist(broker) and not self.in_waitlist(broker):
-            self.waitlist.add(broker.public)
+        self.waitlist.add(broker.public)
+
+        if broker.public not in self.votes.keys():
             self.votes[broker.public] = dict()
 
-    def in_waitlist(self, broker: "Wallet"):
+    def in_waitlist(self, broker: "Wallet") -> bool:
         """
         Checks if the broker is currently in the waitlist.
         """
         return broker.public in self.waitlist
 
-    def add_whitelist(self, broker: "Wallet"):
-        """
-        Removes a broker from the waitlist and adds them to the whitelist.
-        """
-        self.waitlist.remove(broker.public)
-        self.whitelist.add(broker.public)
-
-    def in_whitelist(self, broker: "Wallet"):
+    def in_whitelist(self, broker: "Wallet") -> bool:
         """
         Checks if the broker is currently in the whitelist.
         """
         return broker.public in self.whitelist
+
+    def vote(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet", vote: bool) -> None:
+        """
+        This method should be overrided in all child classes.
+
+        `super().vote()` should be called in the overrided method when a vote is
+        cast. The overrided method should also determine two cases:
+
+        1.  The case where the minimum conditions are met, and the broker is 
+            removed from the waitlist and added to the whitelist.
+        2.  The case where the minimum conditions are no longer met, and the
+            broker is removed from the whitelist and added back to the waitlist.
+        """
+        if self._vote_condition(proposal, voter, broker):
+            if not self.in_whitelist(broker) and not self.in_waitlist(broker):
+                self.add_waitlist(broker)
+
+            self.votes[broker.public][voter.public] = vote
+
+            if self._add_condition(proposal, voter, broker):
+                self._add_whitelist(broker)
+            elif self._remove_condition(proposal, voter, broker) and self.in_whitelist(broker):
+                self._remove_whitelist(broker)
+
+    @abstractmethod
+    def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        return True
+
+    @abstractmethod
+    def _add_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        return True
+
+    @abstractmethod 
+    def _remove_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        return True
+
+    def _add_whitelist(self, broker: "Wallet") -> None:
+        """
+        Removes a broker from the waitlist and adds them to the whitelist.
+        """
+        self._remove_waitlist(broker)
+        self.whitelist.add(broker.public)
+
+    def _remove_waitlist(self, broker: "Wallet") -> None:
+        """
+        Removes a broker from the the waitlist.
+        """
+        self.waitlist.remove(broker.public)
+
+    def _remove_whitelist(self, broker: "Wallet") -> None:
+        """
+        Removes broker from the whitelist and adds them to the waitlist.
+        """
+        self.whitelist.remove(broker.public)
+        self.add_waitlist(broker)
 
 
 class NoVote(WhitelistMechanism):
@@ -73,13 +110,23 @@ class NoVote(WhitelistMechanism):
     This is a permissionless whitelist mechanism. In this mechanism, votes are
     not counted, and all brokers are on the whitelist.
     """
-    def vote(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet", vote: bool):
-        pass
 
-    def in_waitlist(self, broker: "Wallet"):
+    def in_waitlist(self, broker: "Wallet") -> bool:
         return False
 
-    def in_whitelist(self, broker: "Wallet"):
+    def in_whitelist(self, broker: "Wallet") -> bool:
+        return True
+
+    def vote(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet", vote: bool) -> None:
+        pass
+
+    def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        return True
+
+    def _add_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        return True
+
+    def _remove_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
         return True
 
 
@@ -89,12 +136,20 @@ class OwnerVote(WhitelistMechanism):
     brokers get whitelisted. Any votes cast by anyone who is not the owner are
     not counted.
     """
-    def vote(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet", vote: bool):
-        if voter.public == proposal.owner_address:
-            super().vote(proposal, voter, broker, vote)
+    def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        voter_is_owner = voter.public == proposal.owner_address
 
-            if vote is True:
-                self.add_whitelist(broker)
+        return voter_is_owner is True
+
+    def _add_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        owner_vote_true = self.votes[broker.public][voter.public]
+
+        return owner_vote_true is True
+
+    def _remove_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        owner_vote_false = self.votes[broker.public][voter.public]
+
+        return owner_vote_false is False
 
 
 class PayerVote(WhitelistMechanism):
@@ -103,12 +158,20 @@ class PayerVote(WhitelistMechanism):
     brokers get whitelisted. Only one payer is required to approve a broker for
     a broker to get whitelisted.
     """
-    def vote(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet", vote: bool):
-        if voter.public == proposal.owner_address or voter.public in proposal.payer_contributions.keys():
-            super().vote(proposal, voter, broker, vote)
+    def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        voter_is_payer = voter.public in proposal.payer_contributions.keys()
 
-            if vote is True:
-                self.add_whitelist(broker)
+        return voter_is_payer
+
+    def _add_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        any_payer_vote_true = any(self.votes[broker.public].values())
+
+        return any_payer_vote_true is True
+
+    def _remove_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        all_payers_vote_false = all(self.votes[broker.public].values())
+
+        return all_payers_vote_false is False
 
 
 class EqualVote(WhitelistMechanism):
@@ -119,15 +182,22 @@ class EqualVote(WhitelistMechanism):
     """
     min_vote = pm.Number(0.5, doc="the minimum percentage of votes needed to whitelist a broker")
 
-    def vote(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet", vote: bool):
-        if voter.public in proposal.payer_contributions.keys():
-            super().vote(proposal, voter, broker, vote)
+    def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        voter_is_payer = voter.public in proposal.payer_contributions.keys()
 
-            vote = sum([1 * vote for vote in self.votes[broker.public].values()])
-            n_payers = len(proposal.payer_contributions)
+        return voter_is_payer
 
-            if vote / n_payers >= self.min_vote:
-                self.add_whitelist(broker)
+    def _add_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        return self._voter_fraction(proposal, broker) >= self.min_vote
+
+    def _remove_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        return self._voter_fraction(proposal, broker) < self.min_vote
+
+    def _voter_fraction(self, proposal: "ProposalInverter", broker: "Wallet") -> float:
+        vote = sum([1 * vote for vote in self.votes[broker.public].values()])
+        n_payers = len(proposal.payer_contributions)
+
+        return vote / n_payers
 
 
 class WeightedVote(WhitelistMechanism):
@@ -139,18 +209,25 @@ class WeightedVote(WhitelistMechanism):
     """
     min_vote = pm.Number(0.5, doc="the minimum percentage of weighted votes needed to whitelist a broker")
 
-    def vote(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet", vote: bool):
-        if voter.public in proposal.payer_contributions.keys():
-            super().vote(proposal, voter, broker, vote)
+    def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        voter_is_payer = voter.public in proposal.payer_contributions.keys()
 
-            weighted_vote = sum([
-                proposal.payer_contributions[payer] * vote
-                for payer, vote in self.votes[broker.public].items()
-            ])
-            total_contributions = sum(proposal.payer_contributions.values())
+        return voter_is_payer
 
-            if weighted_vote / total_contributions >= self.min_vote:
-                self.add_whitelist(broker)
+    def _add_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        return self._weighted_vote_fraction(proposal, broker) >= self.min_vote
+
+    def _remove_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        return self._weighted_vote_fraction(proposal, broker) < self.min_vote
+
+    def _weighted_vote_fraction(self, proposal: "ProposalInverter", broker: "Wallet") -> float:
+        weighted_vote = sum([
+            proposal.payer_contributions[payer] * vote
+            for payer, vote in self.votes[broker.public].items()
+        ])
+        total_contributions = sum(proposal.payer_contributions.values())
+
+        return weighted_vote / total_contributions
 
 
 class UnanimousVote(WhitelistMechanism):
@@ -159,14 +236,21 @@ class UnanimousVote(WhitelistMechanism):
     whitelisted. The approval must be unanimous, meaning each payer has equal
     veto power.
     """
-    def vote(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet", vote: bool):
-        if voter.public in proposal.payer_contributions.keys():
-            super().vote(proposal, voter, broker, vote)
+    def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        voter_is_payer = voter.public in proposal.payer_contributions.keys()
 
-            unanimous = all([
-                self.votes[broker.public].get(payer, False)
-                for payer in proposal.payer_contributions.keys()
-            ])
+        return voter_is_payer
 
-            if unanimous:
-                self.add_whitelist(broker)
+    def _add_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        return self._unanimous(proposal, broker) is True
+
+    def _remove_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        return self._unanimous(proposal, broker) is False
+
+    def _unanimous(self, proposal: "ProposalInverter", broker: "Wallet") -> bool:
+        unanimous = all([
+            self.votes[broker.public].get(payer, False)
+            for payer in proposal.payer_contributions.keys()
+        ])
+
+        return unanimous
