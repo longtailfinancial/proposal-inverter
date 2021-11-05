@@ -241,7 +241,7 @@ def test_forced_cancel_case2(broker1, broker2, payer):
     assert inverter.get_allocated_funds() < inverter.funds
 
 
-def test_owner_vote(owner, broker1, payer):
+def test_owner_whitelist(owner, broker1, payer):
     inverter = owner.deploy(500, broker_whitelist=OwnerVote())
 
     # Broker applies to proposal, but not yet whitelisted
@@ -250,9 +250,22 @@ def test_owner_vote(owner, broker1, payer):
     assert broker1.funds == 100
     assert inverter.number_of_brokers() == 0
 
-    # Owner whitelists broker
+    # Owner adds broker to whitelist
     inverter.vote_broker(owner, broker1, True)
     broker1 = inverter.add_broker(broker1, 10)
 
     assert broker1.funds == 90
     assert inverter.number_of_brokers() == 1
+
+    # Owner removes broker from whitelist
+    inverter.vote_broker(owner, broker1, False)
+    broker1 = inverter.remove_broker(broker1)
+
+    assert broker1.funds == 90
+    assert inverter.number_of_brokers() == 0
+
+    # Broker tries to apply to proposal again after being removed from whitelist
+    broker1 = inverter.add_broker(broker1, 10)
+
+    assert broker1.funds == 90
+    assert inverter.number_of_brokers() == 0
