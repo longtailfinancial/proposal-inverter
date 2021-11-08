@@ -118,6 +118,7 @@ class ProposalInverter(Wallet):
     min_brokers = pm.Number(1, doc="minimum number of brokers required to continue")
     max_brokers = pm.Number(5, doc="maximum number of brokers that can join")
     buffer_period = pm.Number(5, doc="minimum number of epochs for a condition to trigger the cancellation of the proposal inverter")
+    min_contribution = pm.Number(5, doc="minimum funds that a payer must contribute to join")
     
     def __init__(self, owner: Wallet, initial_funds: float, **params):
         super(ProposalInverter, self).__init__(**params)
@@ -281,14 +282,16 @@ class ProposalInverter(Wallet):
         Furthermore, the Horizon H is increased 
         H+ = (R + ΔF)/ ΔA = H + (ΔF/ΔA)
         """
-        if self.payer_whitelist.in_whitelist(payer):
+        if tokens < self.min_contribution:
+            print("Payer contribution is lower than minimum contribution")
+        elif not self.payer_whitelist.in_whitelist(payer):
+            self.payer_whitelist.add_waitlist(payer)
+            print("Payer not yet whitelisted, added to waitlist")
+        elif self.payer_whitelist.in_whitelist(payer):
             payer.funds -= tokens
             self.funds += tokens
 
             self.payer_contributions[payer.public] += tokens
-        else:
-            self.payer_whitelist.add_waitlist(payer)
-            print("Warning: payer not yet whitelisted, added to waitlist")
 
         return payer
     
