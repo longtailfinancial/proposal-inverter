@@ -143,10 +143,19 @@ def test_get_allocated_funds(inverter, broker1, broker2):
 
 
 def test_pay(inverter, payer):
+    # Payer contributes more than minimum contribution and is accepted
     payer = inverter.pay(payer, 25)
 
     assert payer.funds == 75
     assert inverter.funds == 525
+
+
+def test_pay_lower_than_minimum(inverter, payer):
+    # Payer cannot contribute lower than minimum contribution
+    payer = inverter.pay(payer, 1)
+
+    assert payer.funds == 100
+    assert inverter.funds == 500
 
     
 def test_cancel(owner, inverter, broker1, broker2):
