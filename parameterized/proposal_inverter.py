@@ -28,7 +28,7 @@ class Wallet(pm.Parameterized):
 
         self.joined = set()
         self.paid = set()
-        self.owned.set()
+        self.owned = set()
 
     def _default_agreement_contract_params(self):
         params = dict(
@@ -91,7 +91,7 @@ class Wallet(pm.Parameterized):
         for broker_key in broker_pool:
             broker_pool[broker_key] = agreement_contract.claim_broker_funds(broker_pool[broker_key])
 
-        self.owned.remove(agreement_contract.public)
+        self.owned.discard(agreement_contract.public)
 
         return broker_pool
        
@@ -226,9 +226,9 @@ class ProposalInverter(Wallet):
                 self.funds -= stake
 
             broker = self.claim_broker_funds(broker)
-            broker.joined.remove(self.public)
+            broker.joined.discard(self.public)
             del self.broker_agreements[broker.public]
-            self.committed_brokers.remove(broker)
+            self.committed_brokers.discard(broker)
 
         return broker
 
@@ -340,7 +340,7 @@ class ProposalInverter(Wallet):
                 total_claimed=0           
             )
 
-        owner.owned.remove(self.public)
+        owner.owned.discard(self.public)
 
         self.cancelled = True
 

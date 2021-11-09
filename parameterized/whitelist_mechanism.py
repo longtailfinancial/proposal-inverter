@@ -95,13 +95,13 @@ class WhitelistMechanism(pm.Parameterized):
         """
         Removes a broker from the the waitlist.
         """
-        self.waitlist.remove(broker.public)
+        self.waitlist.discard(broker.public)
 
     def _remove_whitelist(self, broker: "Wallet") -> None:
         """
         Removes broker from the whitelist and adds them to the waitlist.
         """
-        self.whitelist.remove(broker.public)
+        self.whitelist.discard(broker.public)
         self.add_waitlist(broker)
 
 
