@@ -26,6 +26,10 @@ class Wallet(pm.Parameterized):
         self.private = private
         self.public = public
 
+        self.joined = set()
+        self.paid = set()
+        self.owned.set()
+
     def _default_agreement_contract_params(self):
         params = dict(
             min_stake = 5,
@@ -63,6 +67,8 @@ class Wallet(pm.Parameterized):
                 initial_funds = initial_funds,
                 **params,
             )
+
+        self.owned.add(agreement_contract.public)
         
         return agreement_contract
         
@@ -84,6 +90,8 @@ class Wallet(pm.Parameterized):
 
         for broker_key in broker_pool:
             broker_pool[broker_key] = agreement_contract.claim_broker_funds(broker_pool[broker_key])
+
+        self.owned.remove(agreement_contract.public)
 
         return broker_pool
        
@@ -162,6 +170,8 @@ class ProposalInverter(Wallet):
                 total_claimed=0
             )
             self.committed_brokers.add(broker)
+
+            broker.joined.add(self.public)
         else:
             self.broker_whitelist.add_waitlist(broker)
             print("Warning: broker not yet whitelisted, added to waitlist")
@@ -216,6 +226,7 @@ class ProposalInverter(Wallet):
                 self.funds -= stake
 
             broker = self.claim_broker_funds(broker)
+            broker.joined.remove(self.public)
             del self.broker_agreements[broker.public]
             self.committed_brokers.remove(broker)
 
@@ -284,18 +295,20 @@ class ProposalInverter(Wallet):
         """
         if tokens < self.min_contribution:
             print("Payer contribution is lower than minimum contribution")
-        elif not self.payer_whitelist.in_whitelist(payer):
-            self.payer_whitelist.add_waitlist(payer)
-            print("Payer not yet whitelisted, added to waitlist")
         elif self.payer_whitelist.in_whitelist(payer):
             payer.funds -= tokens
             self.funds += tokens
 
             self.payer_contributions[payer.public] += tokens
 
+            payer.paid.add(self.public)
+        else:
+            self.payer_whitelist.add_waitlist(payer)
+            print("Payer not yet whitelisted, added to waitlist")
+
         return payer
     
-    def cancel(self, owner_address: str):
+    def cancel(self, owner: Wallet):
         """
         In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any 
         unclaimed tokens allocated to their address as well an equal share of the remaining unallocated assets.
@@ -310,7 +323,7 @@ class ProposalInverter(Wallet):
 
         when the contract is self-destructed.
         """
-        if owner_address != self.owner_address:
+        if owner.public != self.owner_address:
             print("Only the owner can cancel a proposal")
         else:
             total_stake = sum([broker_agreement.initial_stake for broker_agreement in self.broker_agreements.values()])
@@ -327,7 +340,11 @@ class ProposalInverter(Wallet):
                 total_claimed=0           
             )
 
+        owner.owned.remove(self.public)
+
         self.cancelled = True
+
+        return owner
 
     def _minimum_start_conditions_met(self):
         """
