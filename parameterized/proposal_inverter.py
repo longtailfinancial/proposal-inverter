@@ -66,10 +66,11 @@ class Wallet(pm.Parameterized):
                 owner = self,
                 initial_funds = initial_funds,
                 **params,
-            )
+        )
 
+        self.funds -= initial_funds
         self.owned.add(agreement_contract.public)
-        
+
         return agreement_contract
         
     def cancel(self, agreement_contract, broker_pool):
@@ -129,14 +130,15 @@ class ProposalInverter(Wallet):
     min_contribution = pm.Number(5, doc="minimum funds that a payer must contribute to join")
     
     def __init__(self, owner: Wallet, initial_funds: float, **params):
-        super(ProposalInverter, self).__init__(**params)
+        super(ProposalInverter, self).__init__(
+            funds=initial_funds,
+            **params
+        )
 
         self.owner_address = owner.public
-        owner.funds -= initial_funds
-        self.funds = initial_funds
-        self.payer_contributions[owner.public] = initial_funds
 
-        self.committed_brokers = set()
+        # Manually add owner to whitelist and add initial funds
+        self.payer_whitelist.whitelist.add(owner.public)
 
         self.started = self._minimum_start_conditions_met()
 
@@ -154,7 +156,7 @@ class ProposalInverter(Wallet):
         """
         if broker.public in self.broker_agreements.keys():
             print("Failed to add broker, broker already has a stake in this proposal")
-        elif len(self.committed_brokers) + 1 > self.max_brokers:
+        elif self.number_of_brokers() + 1 > self.max_brokers:
             print("Failed to add broker, maximum number of brokers reached")
         elif stake < self.min_stake:
             print("Failed to add broker, minimum stake not met")
@@ -169,7 +171,6 @@ class ProposalInverter(Wallet):
                 allocated_funds=0,
                 total_claimed=0
             )
-            self.committed_brokers.add(broker)
 
             broker.joined.add(self.public)
         else:
@@ -228,7 +229,6 @@ class ProposalInverter(Wallet):
             broker = self.claim_broker_funds(broker)
             broker.joined.discard(self.public)
             del self.broker_agreements[broker.public]
-            self.committed_brokers.discard(broker)
 
         return broker
 
@@ -267,7 +267,7 @@ class ProposalInverter(Wallet):
             self.cancel(self.owner_address)
 
     def number_of_brokers(self):
-        return len(self.committed_brokers)
+        return len(self.broker_agreements.keys())
     
     def get_broker_claimable_funds(self):
         return self.allocation_per_epoch / self.number_of_brokers()
@@ -308,7 +308,7 @@ class ProposalInverter(Wallet):
 
         return payer
     
-    def cancel(self, owner: Wallet):
+    def cancel(self, owner_address):
         """
         In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any 
         unclaimed tokens allocated to their address as well an equal share of the remaining unallocated assets.
@@ -323,7 +323,7 @@ class ProposalInverter(Wallet):
 
         when the contract is self-destructed.
         """
-        if owner.public != self.owner_address:
+        if owner_address != self.owner_address:
             print("Only the owner can cancel a proposal")
         else:
             total_stake = sum([broker_agreement.initial_stake for broker_agreement in self.broker_agreements.values()])
@@ -340,11 +340,7 @@ class ProposalInverter(Wallet):
                 total_claimed=0           
             )
 
-        owner.owned.discard(self.public)
-
         self.cancelled = True
-
-        return owner
 
     def _minimum_start_conditions_met(self):
         """
