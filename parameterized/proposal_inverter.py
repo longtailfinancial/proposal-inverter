@@ -1,4 +1,5 @@
 import param as pm
+import pandas as pd
 import panel as pn
 import secrets
 
@@ -25,6 +26,10 @@ class Wallet(pm.Parameterized):
         (private, public) = generate_eth_account()
         self.private = private
         self.public = public
+
+        self.joined = set()
+        self.paid = set()
+        self.owned = set()
 
     def _default_agreement_contract_params(self):
         params = dict(
@@ -62,8 +67,11 @@ class Wallet(pm.Parameterized):
                 owner = self,
                 initial_funds = initial_funds,
                 **params,
-            )
-        
+        )
+
+        self.funds -= initial_funds
+        self.owned.add(agreement_contract.public)
+
         return agreement_contract
         
     def cancel(self, agreement_contract, broker_pool):
@@ -84,6 +92,8 @@ class Wallet(pm.Parameterized):
 
         for broker_key in broker_pool:
             broker_pool[broker_key] = agreement_contract.claim_broker_funds(broker_pool[broker_key])
+
+        self.owned.discard(agreement_contract.public)
 
         return broker_pool
        
@@ -109,6 +119,7 @@ class ProposalInverter(Wallet):
     payer_whitelist = pm.ClassSelector(WhitelistMechanism, default=NoVote())
     
     # Parameters
+    stake = pm.Number(0, doc="The total broker stake")
     min_stake = pm.Number(5, doc="minimum funds that a broker must stake to join")
     epoch_length = pm.Number(60*60*24, doc="length of one epoch, measured in seconds")
     min_epochs = pm.Number(28, doc="minimum number of epochs that must pass for a broker to exit and take their stake")
@@ -118,16 +129,19 @@ class ProposalInverter(Wallet):
     min_brokers = pm.Number(1, doc="minimum number of brokers required to continue")
     max_brokers = pm.Number(5, doc="maximum number of brokers that can join")
     buffer_period = pm.Number(5, doc="minimum number of epochs for a condition to trigger the cancellation of the proposal inverter")
+    min_contribution = pm.Number(5, doc="minimum funds that a payer must contribute to join")
     
     def __init__(self, owner: Wallet, initial_funds: float, **params):
-        super(ProposalInverter, self).__init__(**params)
+        super(ProposalInverter, self).__init__(
+            funds=initial_funds,
+            **params
+        )
 
         self.owner_address = owner.public
-        owner.funds -= initial_funds
-        self.funds = initial_funds
-        self.payer_contributions[owner.public] = initial_funds
 
-        self.committed_brokers = set()
+        # Manually add owner to whitelist and track owner contribution
+        self.payer_whitelist.whitelist.add(owner.public)
+        self.payer_contributions[owner.public] = initial_funds
 
         self.started = self._minimum_start_conditions_met()
 
@@ -145,7 +159,7 @@ class ProposalInverter(Wallet):
         """
         if broker.public in self.broker_agreements.keys():
             print("Failed to add broker, broker already has a stake in this proposal")
-        elif len(self.committed_brokers) + 1 > self.max_brokers:
+        elif self.number_of_brokers() + 1 > self.max_brokers:
             print("Failed to add broker, maximum number of brokers reached")
         elif stake < self.min_stake:
             print("Failed to add broker, minimum stake not met")
@@ -153,14 +167,15 @@ class ProposalInverter(Wallet):
             print("Failed to add broker, proposal has been cancelled")
         elif self.broker_whitelist.in_whitelist(broker):
             broker.funds -= stake
-            self.funds += stake
+            self.stake += stake
             self.broker_agreements[broker.public] = BrokerAgreement(
                 epoch_joined=self.current_epoch,
                 initial_stake=stake,
                 allocated_funds=0,
                 total_claimed=0
             )
-            self.committed_brokers.add(broker)
+
+            broker.joined.add(self.public)
         else:
             self.broker_whitelist.add_waitlist(broker)
             print("Warning: broker not yet whitelisted, added to waitlist")
@@ -209,14 +224,18 @@ class ProposalInverter(Wallet):
         if broker_agreement is None:
             print("Broker is not part of this proposal")
         else:
-            if self.current_epoch - broker_agreement.epoch_joined >= self.min_epochs:
+            if self.cancelled or self.current_epoch - broker_agreement.epoch_joined >= self.min_epochs:
                 stake = broker_agreement.initial_stake
                 broker.funds += stake
-                self.funds -= stake
+                self.stake -= stake
+            else:
+                stake = broker_agreement.initial_stake
+                self.funds += stake
+                self.stake -= stake
 
             broker = self.claim_broker_funds(broker)
+            broker.joined.discard(self.public)
             del self.broker_agreements[broker.public]
-            self.committed_brokers.remove(broker)
 
         return broker
 
@@ -254,8 +273,9 @@ class ProposalInverter(Wallet):
         if (self.current_epoch - self.cancel_epoch) > self.buffer_period:
             self.cancel(self.owner_address)
 
+
     def number_of_brokers(self):
-        return len(self.committed_brokers)
+        return len(self.broker_agreements.keys())
     
     def get_broker_claimable_funds(self):
         return self.allocation_per_epoch / self.number_of_brokers()
@@ -281,18 +301,24 @@ class ProposalInverter(Wallet):
         Furthermore, the Horizon H is increased 
         H+ = (R + ΔF)/ ΔA = H + (ΔF/ΔA)
         """
-        if self.payer_whitelist.in_whitelist(payer):
+        if tokens < self.min_contribution:
+            print("Payer contribution is lower than minimum contribution")
+        elif self.cancelled:
+            print("Proposal has been cancelled, cannot add funds")
+        elif self.payer_whitelist.in_whitelist(payer):
             payer.funds -= tokens
             self.funds += tokens
 
             self.payer_contributions[payer.public] += tokens
+
+            payer.paid.add(self.public)
         else:
             self.payer_whitelist.add_waitlist(payer)
-            print("Warning: payer not yet whitelisted, added to waitlist")
+            print("Payer not yet whitelisted, added to waitlist")
 
         return payer
     
-    def cancel(self, owner_address: str):
+    def cancel(self, owner_address):
         """
         In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any 
         unclaimed tokens allocated to their address as well an equal share of the remaining unallocated assets.
@@ -309,22 +335,27 @@ class ProposalInverter(Wallet):
         """
         if owner_address != self.owner_address:
             print("Only the owner can cancel a proposal")
+        elif self.cancelled:
+            print("Proposal has already been cancelled")
         else:
-            total_stake = sum([broker_agreement.initial_stake for broker_agreement in self.broker_agreements.values()])
             total_allocated_funds = self.get_allocated_funds()
 
             for public_key, broker_agreement in self.broker_agreements.items():
-                broker_agreement.allocated_funds += broker_agreement.initial_stake + (self.funds - total_stake - total_allocated_funds) / self.number_of_brokers()
+                broker_agreement.allocated_funds += (self.funds - total_allocated_funds) / self.number_of_brokers()
 
             # If there are no brokers attached to the proposal inverter, return funds to owner
-            self.broker_agreements[self.owner_address] = BrokerAgreement(
-                epoch_joined=self.current_epoch,
-                initial_stake=0,
-                allocated_funds=self.funds - self.get_allocated_funds(),
-                total_claimed=0           
-            )
+            remainder = self.funds - self.get_allocated_funds()
+            if self.owner_address in self.broker_agreements.keys():
+                self.broker_agreements[self.owner_address].allocated_funds += remainder
+            else:
+                self.broker_agreements[self.owner_address] = BrokerAgreement(
+                    epoch_joined=self.current_epoch,
+                    initial_stake=0,
+                    allocated_funds=remainder,
+                    total_claimed=0           
+                )
 
-        self.cancelled = True
+            self.cancelled = True
 
     def _minimum_start_conditions_met(self):
         """

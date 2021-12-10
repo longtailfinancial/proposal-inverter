@@ -122,8 +122,18 @@ def test_weighted_vote(payer1, payer2, inverter, broker):
 def test_unanimous_vote(owner, payer1, payer2, inverter, broker):
     mechanism = UnanimousVote()
 
+    print(mechanism.waitlist)
+    print(mechanism.whitelist)
+
     mechanism.vote(inverter, payer1, broker, True)
+
+    print(mechanism.waitlist)
+    print(mechanism.whitelist)
+    
     mechanism.vote(inverter, payer2, broker, True)
+
+    print(mechanism.waitlist)
+    print(mechanism.whitelist)
 
     assert mechanism.in_waitlist(broker) == True
     assert mechanism.in_whitelist(broker) == False    
