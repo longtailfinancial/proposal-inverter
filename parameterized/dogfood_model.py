@@ -49,7 +49,9 @@ def use_case_test(owner, broker1, broker2, broker3, broker4, payer):
     This test is a practical use case scenario for the proposal inverter. It is meant to put
     this project into pragmatic scenario by using an example where the proposal inverter iself
     is a pitched proposal, the PrimoDAO team as the owners, and the token engineering team hired
-    to work on it as the brokers. The pay period for the brokers is 15 epochs.
+    to work on it as the brokers. The pay period for the brokers is 15 epochs. This example assumes
+    that the brokers for the proposal inverter are staking 50 into the proposal, which is not necessarily
+    indicative of what the actual brokers of the proposal inverter are doing.
     """
     
     # Shawn (Broker1), with funding of PrimeDAO (owner), launches the proposal inverter as a project, secures initial funding and stakes 50
