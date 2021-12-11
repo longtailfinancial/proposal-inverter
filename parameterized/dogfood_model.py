@@ -97,10 +97,10 @@ def use_case_test(owner, broker1, broker2, broker3, broker4, payer):
     inverter.cancel(owner.public)
     
     # Each broker makes their claim from the proposal as a result of the success of the proposal inverter
-    broker1 = inverter.claim_broker_funds(broker1)
-    broker2 = inverter.claim_broker_funds(broker2)
-    broker3 = inverter.claim_broker_funds(broker3)
-    broker4 = inverter.claim_broker_funds(broker4)
+    broker1 = inverter.remove_broker(broker1)
+    broker2 = inverter.remove_broker(broker2)
+    broker3 = inverter.remove_broker(broker3)
+    broker4 = inverter.remove_broker(broker4)
     
     # No funds remain as they are distributed amongst the brokers 
     assert inverter.funds == 0
