@@ -19,9 +19,6 @@ def generate_eth_account():
 
 
 class Wallet(pm.Parameterized):
-    funds = pm.Number(100)
-
-    wallet_feature_matrix = pm.List(list(), doc="store each wallet's preference for a proposal's features")
     """
     number_of_features represents the number of features that a wallet accounts for when reviewing a proposal, 
     which is represented by wallet types. The wallet types for this example are which in this example are 
@@ -29,6 +26,8 @@ class Wallet(pm.Parameterized):
     what each Wallet type represents, refer to the Proposal Inverter: Matrix factorization Hackmd. Please
     note: number of wallets must be equal to the number of proposal features.
     """
+    funds = pm.Number(100)
+    feature_vector = pm.List(list(), doc="stores each wallet's characteristics as features in a vector")
     number_of_features = pm.Number(5, doc="number of wallet features")
     
     def __init__(self, **params):
@@ -119,8 +118,6 @@ class BrokerAgreement(pm.Parameterized):
 
 
 class ProposalInverter(Wallet):
-    # State
-    proposal_feature_matrix = pm.List(list(), doc="store features of a proposal")
     """
     number_of_features represents the number of features that are present in a proposal, which in 
     this example are (F1: Location, F2: Simplicity, F3:Profitability, F4: Low time commitment, 
@@ -128,8 +125,7 @@ class ProposalInverter(Wallet):
     refer to Proposal Inverter: Matrix factorization Hackmd. Please note: number of features must be 
     equal for both wallets and proposals.
     """
-    number_of_features = pm.Number(5, doc="number of proposal features")
-    
+    # State
     broker_agreements = pm.Dict(dict(), doc="maps each broker's public key to their broker agreement")
     cancelled = pm.Boolean(False, doc="if the proposal has been cancelled, funds will no longer be allocated")
     current_epoch = pm.Number(0, doc="number of epochs that have passed")
