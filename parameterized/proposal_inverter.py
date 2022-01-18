@@ -129,7 +129,7 @@ class ProposalInverter(Wallet):
     broker_agreements = pm.Dict(dict(), doc="maps each broker's public key to their broker agreement")
     cancelled = pm.Boolean(False, doc="if the proposal has been cancelled, funds will no longer be allocated")
     current_epoch = pm.Number(0, doc="number of epochs that have passed")
-    cancel_epoch = pm.Number(0, doc="last epoch where minimum conditions were been met")
+    cancel_epoch = pm.Number(0, doc="last epoch where minimum conditions have been met")
     payer_contributions = pm.Dict(defaultdict(int), doc="maps each payer's public key to their accumulated contribution")
     broker_whitelist = pm.ClassSelector(WhitelistMechanism, default=OwnerVote())
     payer_whitelist = pm.ClassSelector(WhitelistMechanism, default=NoVote())
