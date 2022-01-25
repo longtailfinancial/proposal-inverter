@@ -399,12 +399,16 @@ class ProposalInverter(Wallet):
         elif self.cancelled:
             print("Proposal has already been cancelled")
         else:
-            total_allocated_funds = self.get_allocated_funds()
+            total_allocated_funds = self.get_allocated_funds()       
+            total_allocated_broker_funds = self.allocation_per_epoch * self.min_horizon
+            
+            for public_key, broker_agreement in self.broker_agreements.items():
+                broker_agreement.allocated_funds += (total_allocated_broker_funds) / self.number_of_brokers()
 
             for public_key, payer_agreement in self.payer_agreements.items():
                 # The funder returns are based on the amount that funder contributed
                 funder_funds = payer_agreement.total_funds
-                payer_agreement.payer_returns += (self.funds - total_allocated_funds) * (funder_funds/self.funds)
+                payer_agreement.payer_returns += (self.funds - total_allocated_funds - total_allocated_broker_funds) * (funder_funds/self.funds)
 
             # If there are no brokers attached to the proposal inverter, return funds to owner
             remainder = self.funds - self.get_allocated_funds()
