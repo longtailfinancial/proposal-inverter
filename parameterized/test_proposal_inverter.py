@@ -184,15 +184,20 @@ def test_cancel(owner, inverter, broker1, broker2):
     broker1 = inverter.remove_broker(broker1)
     broker2 = inverter.remove_broker(broker2)
         
-    # Broker1 funds = 50 (current funds) + 50 (stake) + 250 (claim) = 350
-    assert broker1.funds == 350
+    # Broker1 funds = 50 (current funds) + 50 (stake) + 150 (claim) + 70/2 = 285
+    # 70/2 = (allocation_per_epoch * min_horizon)/ num_of_brokers
+    assert broker1.funds == 285
     
-    # Broker2 funds = 0 (current funds) + 100 (stake) + 250 (claim) = 350
-    assert broker2.funds == 350
+    # Broker2 funds = 0 (current funds) + 100 (stake) + 150 (claim) + 70/2 = 285
+    # 70/2 = (allocation_per_epoch * min_horizon)/ num_of_brokers
+    assert broker2.funds == 285
 
+    # Payers claim their portion
+    owner = inverter.claim_payer_returns(owner)
+    
     # End state of proposal inverter
     assert inverter.funds == 0
-    assert inverter.get_allocated_funds() == 0
+    assert inverter.get_allocated_funds() == 130
 
 
 def test_forced_cancel_case1(broker1):
