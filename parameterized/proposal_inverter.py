@@ -1,3 +1,4 @@
+import numpy as np
 import param as pm
 import pandas as pd
 import panel as pn
@@ -27,7 +28,7 @@ class Wallet(pm.Parameterized):
     note: number of wallets must be equal to the number of proposal features.
     """
     funds = pm.Number(100)
-    feature_vector = pm.List(list(), doc="stores each wallet's characteristics as features in a vector")
+    feature_vector = pm.ClassSelector(np.ndarray, doc="stores each wallet's characteristics as features in a vector")
     number_of_features = pm.Number(5, doc="number of wallet features")
     
     def __init__(self, **params):
