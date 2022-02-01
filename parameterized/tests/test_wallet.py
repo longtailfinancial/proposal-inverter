@@ -1,5 +1,5 @@
-from .proposal_inverter import Wallet
-from .whitelist_mechanism import NoVote
+from parameterized.proposal_inverter import Wallet
+from parameterized.whitelist_mechanism import NoVote
 
 
 def test_deploy_proposal_inverter():
