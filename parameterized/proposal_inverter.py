@@ -7,7 +7,9 @@ import secrets
 from collections import defaultdict
 from eth_account import Account
 
-from .whitelist_mechanism import WhitelistMechanism, NoVote, OwnerVote, PayerVote, EqualVote, WeightedVote, UnanimousVote
+from parameterized.agreement import BrokerAgreement, PayerAgreement
+from parameterized.whitelist_mechanism import WhitelistMechanism, NoVote, OwnerVote, PayerVote, EqualVote, WeightedVote, UnanimousVote
+
 
 pn.extension()
 
@@ -107,27 +109,6 @@ class Wallet(pm.Parameterized):
 
         return broker_pool
        
-        
-class BrokerAgreement(pm.Parameterized):
-    """
-    Stores data about a broker in the proposal inverter.
-    """
-    epoch_joined = pm.Number(0, constant=True, doc="epoch at which this broker joined")
-    initial_stake = pm.Number(0, constant=True, doc="total funds staked")
-    allocated_funds = pm.Number(0, doc="total funds that the broker can currently claim")
-    total_claimed = pm.Number(0, doc="total funds the broker has claimed thus far")
-    
-    
-class PayerAgreement(pm.Parameterized):
-    """
-    Stores data about a payer in the proposal inverter.
-    """
-    epoch_joined = pm.Number(0, constant=True, doc="epoch at which this payer joined")
-    initial_fund = pm.Number(0, constant=True, doc="initial amount funded by payer")
-    total_funds = pm.Number(0, doc="total funds contributed by payer")
-    last_epoch = pm.Number(0, constant=True, doc="epoch at which payer contributed most recently")
-    payer_returns = pm.Number(0, doc="amount returned to payer if proposal is cancelled before dropping below minimum horizon threshold")
-
 
 class ProposalInverter(Wallet):
     """
@@ -170,11 +151,7 @@ class ProposalInverter(Wallet):
         # Manually add owner to whitelist and track owner contribution
         self.payer_whitelist.whitelist.add(owner.public)
         self.payer_agreements[owner.public] = PayerAgreement(
-            epoch_joined = self.current_epoch,
-            initial_fund = initial_funds,
-            total_funds = initial_funds,
-            last_epoch = self.current_epoch,
-            payer_returns = 0
+            contributions={self.current_epoch: initial_funds}
         )
 
         self.started = self._minimum_start_conditions_met()
@@ -330,58 +307,44 @@ class ProposalInverter(Wallet):
         """
         if tokens < self.min_contribution:
             print("Payer contribution is lower than minimum contribution")
+
         elif self.cancelled:
             print("Proposal has been cancelled, cannot add funds")
+
         elif self.payer_whitelist.in_whitelist(payer):
-            
+
             if payer.public not in self.payer_agreements.keys():
-                
-                payer.funds -= tokens
-                self.funds += tokens
-                
-                self.payer_agreements[payer.public] = PayerAgreement(
-                    epoch_joined = self.current_epoch,
-                    initial_fund = tokens,
-                    total_funds = tokens,
-                    last_epoch = self.current_epoch,
-                    payer_returns = 0
-                )
+                self.payer_agreements[payer.public] = PayerAgreement()
                 payer.paid.add(self.public)
-                
-            else: 
-                payer.funds -= tokens
-                self.funds += tokens
-                
-                payer_agreement = self.payer_agreements.get(payer.public)
-                payer_funds = payer_agreement.total_funds
-                payer_epoch_joined = payer_agreement.epoch_joined
-                payer_initial_fund = payer_agreement.initial_fund
-                payer_returns = payer_agreement.payer_returns
-                
-                self.payer_agreements[payer.public] = PayerAgreement(
-                    epoch_joined = payer_epoch_joined,
-                    initial_fund = payer_initial_fund,
-                    total_funds = payer_funds + tokens,
-                    last_epoch = self.current_epoch,
-                    payer_returns = payer_returns
-                )
-            
+
+            self.payer_agreements[payer.public].contributions[self.current_epoch] += tokens
+
+            payer.funds -= tokens
+            self.funds += tokens
+
         else:
             self.payer_whitelist.add_waitlist(payer)
             print("Payer not yet whitelisted, added to waitlist")
 
         return payer
     
-    def claim_payer_returns(self, payer:Wallet):
-        
+    def claim_payer_funds(self, payer: Wallet):
+        """When a proposal is cancelled, any excess funds that are not
+        distributed to the brokers are returned to the payers as claimable
+        funds.
+        """
         payer_agreement = self.payer_agreements.get(payer.public)
         
         if payer_agreement is None:
             print("Payer is not part of this proposal")
         else:
-            returns = payer_agreement.payer_returns
-            payer.funds += returns
-            self.funds -= returns
+            claim = payer_agreement.allocated_funds
+
+            payer_agreement.allocated_funds -= 0
+            payer_agreement.total_claimed += claim
+            payer.funds += claim
+            self.funds -= claim
+
         return payer
     
     def cancel(self, owner_address):
@@ -408,20 +371,8 @@ class ProposalInverter(Wallet):
 
             for public_key, payer_agreement in self.payer_agreements.items():
                 # The funder returns are based on the amount that funder contributed
-                funder_funds = payer_agreement.total_funds
-                payer_agreement.payer_returns += (self.funds - total_allocated_funds - total_allocated_broker_funds) * (funder_funds/self.funds)
-
-            # If there are no brokers attached to the proposal inverter, return funds to owner
-            remainder = self.funds - self.get_allocated_funds()
-            if self.owner_address in self.broker_agreements.keys():
-                self.broker_agreements[self.owner_address].allocated_funds += remainder
-            else:
-                self.broker_agreements[self.owner_address] = BrokerAgreement(
-                    epoch_joined=self.current_epoch,
-                    initial_stake=0,
-                    allocated_funds=remainder,
-                    total_claimed=0           
-                )
+                funder_funds = payer_agreement.total_contributions
+                payer_agreement.allocated_funds += (self.funds - total_allocated_funds - total_allocated_broker_funds) * (funder_funds / self.funds)
 
             self.cancelled = True
 
