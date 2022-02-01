@@ -122,7 +122,6 @@ class ProposalInverter(Wallet):
     broker_agreements = pm.Dict(dict(), doc="maps each broker's public key to their broker agreement")
     cancelled = pm.Boolean(False, doc="if the proposal has been cancelled, funds will no longer be allocated")
     current_epoch = pm.Number(0, doc="number of epochs that have passed")
-    cancel_epoch = pm.Number(0, doc="last epoch where minimum conditions have been met")
     payer_agreements = pm.Dict(dict(), doc="maps each payer's public key to their Payer agreement")
     broker_whitelist = pm.ClassSelector(WhitelistMechanism, default=OwnerVote())
     payer_whitelist = pm.ClassSelector(WhitelistMechanism, default=NoVote())
@@ -269,12 +268,8 @@ class ProposalInverter(Wallet):
         for public, broker_agreement in self.broker_agreements.items():
             broker_agreement.allocated_funds += self.get_broker_claimable_funds()
 
-        # Use cancel_epoch to record when the cancellation condition was triggered
-        if self._minimum_start_conditions_met():
-            self.cancel_epoch = self.current_epoch
-
-        # If the forced cancellation conditions are met for a period longer than the buffer period, trigger the cancel function
-        if (self.current_epoch - self.cancel_epoch) > self.buffer_period:
+        # Use cancel_epoch to record when the cancellation condition is triggered
+        if not self._minimum_start_conditions_met():
             self.cancel(self.owner_address)
 
 
@@ -286,9 +281,13 @@ class ProposalInverter(Wallet):
     
     def get_allocated_funds(self):
         """
-        Returns the total unclaimed allocated funds from all broker agreements.
+        Returns the total unclaimed allocated funds from all broker and payer
+        agreements.
         """
-        return sum([broker_agreement.allocated_funds for broker_agreement in self.broker_agreements.values()])
+        broker_allocated = sum([agreement.allocated_funds for agreement in self.broker_agreements.values()])
+        payer_allocated = sum([agreement.allocated_funds for agreement in self.payer_agreements.values()])
+
+        return broker_allocated + payer_allocated
 
     def get_horizon(self):
         """

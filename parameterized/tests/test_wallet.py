@@ -37,10 +37,12 @@ def test_remove_proposal_inverter():
     """
     If we have a proposal inverter deployed at 500 and 2 brokers enter the
     agreement, broker 1 (stake=50) & broker2 (stake=100), enter at epoch=0, at
-    epoch=30, each of their claimable funds would be 150. 
+    epoch=30, each of their claimable funds would be 150. If the inverter is
+    cancelled, then each broker will recieve their future allocated funds for
+    the minimum horizon.
 
-    Broker 1 should receive: 50 + 150 + (500 - (2 * 150)) / 2 = 300 
-    Broker 2 should receive: 100 + 150 + (500 - (2 * 150)) / 2 = 350
+    Broker 1 should receive: 50 + 150 + (7 * 10) / 2 = 235
+    Broker 2 should receive: 100 + 150 + (7 * 10) / 2 = 285
     """
     for public_key, broker_agreement in inverter.broker_agreements.items():
         assert broker_agreement.allocated_funds == 150
@@ -51,7 +53,7 @@ def test_remove_proposal_inverter():
     broker2 = inverter.remove_broker(broker2)
     
     # Broker1 funds = 300 + 50 (broker1's current funds)
-    assert broker1.funds == 350
+    assert broker1.funds == 285
     
     # Broker2 funds = 350 + 0 (broker2's current funds)
-    assert broker2.funds == 350
+    assert broker2.funds == 285
