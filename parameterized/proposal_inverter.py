@@ -31,7 +31,7 @@ class Wallet(pm.Parameterized):
     """
     funds = pm.Number(100)
     feature_vector = pm.ClassSelector(np.ndarray, doc="stores each wallet's characteristics as features in a vector")
-    number_of_features = pm.Number(5, doc="number of wallet features")
+    number_of_features = pm.Number(5, constant=True, doc="number of wallet features")
     
     def __init__(self, **params):
         super(Wallet, self).__init__(**params)
@@ -149,9 +149,8 @@ class ProposalInverter(Wallet):
 
         # Manually add owner to whitelist and track owner contribution
         self.payer_whitelist.whitelist.add(owner.public)
-        self.payer_agreements[owner.public] = PayerAgreement(
-            contributions={self.current_epoch: initial_funds}
-        )
+        self.payer_agreements[owner.public] = PayerAgreement()
+        self.payer_agreements[owner.public].contributions[self.current_epoch] = initial_funds
 
         self.started = self._minimum_start_conditions_met()
 
