@@ -165,7 +165,9 @@ class ProposalInverter(Wallet):
         restrict access to the set of brokers. These lists may be managed by the owner, the payers, and/or the brokers;
         however, scoping an addition access control scheme is out of scope at this time.
         """
-        if broker.public in self.broker_agreements.keys():
+        if broker.funds < stake:
+            print("Failed to add broker, broker does not have sufficient funds")
+        elif broker.public in self.broker_agreements.keys():
             print("Failed to add broker, broker already has a stake in this proposal")
         elif self.number_of_brokers() + 1 > self.max_brokers:
             print("Failed to add broker, maximum number of brokers reached")
@@ -303,7 +305,10 @@ class ProposalInverter(Wallet):
         Furthermore, the Horizon H is increased 
         H+ = (R + ΔF)/ ΔA = H + (ΔF/ΔA)
         """
-        if tokens < self.min_contribution:
+        if payer.funds < tokens:
+            print("Payer does not have sufficient funds")
+
+        elif tokens < self.min_contribution:
             print("Payer contribution is lower than minimum contribution")
 
         elif self.cancelled:
