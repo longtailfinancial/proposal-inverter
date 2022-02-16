@@ -159,7 +159,7 @@ class PayerVote(WhitelistMechanism):
     a broker to get whitelisted.
     """
     def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
-        voter_is_payer = voter.public in proposal.payer_contributions.keys()
+        voter_is_payer = voter.public in proposal.payer_agreements.keys()
 
         return voter_is_payer
 
@@ -183,7 +183,7 @@ class EqualVote(WhitelistMechanism):
     min_vote = pm.Number(0.5, doc="the minimum percentage of votes needed to whitelist a broker")
 
     def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
-        voter_is_payer = voter.public in proposal.payer_contributions.keys()
+        voter_is_payer = voter.public in proposal.payer_agreements.keys()
 
         return voter_is_payer
 
@@ -195,7 +195,7 @@ class EqualVote(WhitelistMechanism):
 
     def _voter_fraction(self, proposal: "ProposalInverter", broker: "Wallet") -> float:
         vote = sum([1 * vote for vote in self.votes[broker.public].values()])
-        n_payers = len(proposal.payer_contributions)
+        n_payers = len(proposal.payer_agreements)
 
         return vote / n_payers
 
@@ -210,7 +210,7 @@ class WeightedVote(WhitelistMechanism):
     min_vote = pm.Number(0.5, doc="the minimum percentage of weighted votes needed to whitelist a broker")
 
     def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
-        voter_is_payer = voter.public in proposal.payer_contributions.keys()
+        voter_is_payer = voter.public in proposal.payer_agreements.keys()
 
         return voter_is_payer
 
@@ -222,10 +222,13 @@ class WeightedVote(WhitelistMechanism):
 
     def _weighted_vote_fraction(self, proposal: "ProposalInverter", broker: "Wallet") -> float:
         weighted_vote = sum([
-            proposal.payer_contributions[payer] * vote
+            proposal.payer_agreements[payer].total_contributions * vote
             for payer, vote in self.votes[broker.public].items()
         ])
-        total_contributions = sum(proposal.payer_contributions.values())
+        total_contributions = sum(
+            [agreement.total_contributions for agreement in proposal.payer_agreements.values()]
+        )
+        print(weighted_vote, total_contributions)
 
         return weighted_vote / total_contributions
 
@@ -237,7 +240,7 @@ class UnanimousVote(WhitelistMechanism):
     veto power.
     """
     def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
-        voter_is_payer = voter.public in proposal.payer_contributions.keys()
+        voter_is_payer = voter.public in proposal.payer_agreements.keys()
 
         return voter_is_payer
 
@@ -250,7 +253,7 @@ class UnanimousVote(WhitelistMechanism):
     def _unanimous(self, proposal: "ProposalInverter", broker: "Wallet") -> bool:
         unanimous = all([
             self.votes[broker.public].get(payer, False)
-            for payer in proposal.payer_contributions.keys()
+            for payer in proposal.payer_agreements.keys()
         ])
 
         return unanimous

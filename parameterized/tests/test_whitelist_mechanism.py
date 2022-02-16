@@ -1,7 +1,7 @@
 import pytest
 
-from .proposal_inverter import Wallet, ProposalInverter
-from .whitelist_mechanism import NoVote, OwnerVote, PayerVote, EqualVote, WeightedVote, UnanimousVote
+from parameterized.proposal_inverter import Wallet, ProposalInverter
+from parameterized.whitelist_mechanism import NoVote, OwnerVote, PayerVote, EqualVote, WeightedVote, UnanimousVote
 
 
 @pytest.fixture
