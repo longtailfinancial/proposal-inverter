@@ -56,7 +56,9 @@ class Wallet(pm.Parameterized):
         and that B=∅.
         """
         if self.funds < funds:
-            raise ValueError("Wallet does not have sufficient funds to deploy a proposal")
+            print("Wallet does not have sufficient funds to deploy a proposal")
+
+            return None
 
         self.funds -= funds
 
@@ -104,11 +106,10 @@ class ProposalInverter(Wallet):
 
         # Manually add owner to whitelist and track owner contribution
         self.payer_whitelist.whitelist.add(owner.public)
-        self.payer_agreements[owner.public] = PayerAgreement(
-            contributions={self.current_epoch: self.funds}
-        )
+        self.payer_agreements[owner.public] = PayerAgreement()
+        self.payer_agreements[owner.public].contributions[self.current_epoch] += self.funds
 
-        self.started = self.__minimum_start_conditions_met()
+        self.started = self.__minimum_conditions_met()
 
         if not self.started:
             print("ProposalInverter :: proposal deployed without meeting minimum conditions")
@@ -183,9 +184,8 @@ class ProposalInverter(Wallet):
         elif self.cancelled:
             print("Failed to add broker, proposal has been cancelled")
         elif self.broker_whitelist.in_whitelist(broker):
-            for token in stake.keys():
-                broker.funds[token] -= stake[token]
-                self.stake[token] += stake[token]
+            broker.funds -= stake
+            self.stake += stake
 
             self.broker_agreements[broker.public] = BrokerAgreement(
                 epoch_joined=self.current_epoch,
@@ -287,10 +287,13 @@ class ProposalInverter(Wallet):
         for epoch in range(n_epochs):
             if not self.cancelled:
                 if not self.started:
-                    self.started = self.__minimum_start_conditions_met()
+                    self.started = self.__minimum_conditions_met()
 
                 if self.started:
-                    self.__allocate_funds()
+                    if not self.__minimum_conditions_met():
+                        self.cancel(self.owner_address)
+                    else:
+                        self.__allocate_funds()
 
             self.current_epoch += 1
    
@@ -334,17 +337,13 @@ class ProposalInverter(Wallet):
 
     def __allocate_funds(self):
         """
-        Allocates funds for one epoch to all the brokers and checks if the
-        conditions for a forced cancel has been triggered.
+        Allocates funds for one epoch to all the brokers.
         """
         allocation_per_broker = self.get_allocation() / self.get_number_of_brokers()
 
         for agreement in self.broker_agreements.values():
             agreement.allocated_funds += allocation_per_broker
 
-        # Use cancel_epoch to record when the cancellation condition is triggered
-        if not self.__minimum_start_conditions_met():
-            self.cancel(self.owner_address)
 
     def __claim_broker_funds(self, broker: Wallet):
         """
@@ -388,9 +387,9 @@ class ProposalInverter(Wallet):
 
         return payer
 
-    def __minimum_start_conditions_met(self):
+    def __minimum_conditions_met(self):
         """
-        Checks if the proposal currently meets the minimum start conditions. The
+        Checks if the proposal currently meets the minimum conditions. The
         minimum start conditions are currently:
         - If the specified minimum number of payers has been met
         - If the specified minimum horizon has been met
