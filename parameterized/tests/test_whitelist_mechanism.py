@@ -6,41 +6,37 @@ from parameterized.whitelist_mechanism import NoVote, OwnerVote, PayerVote, Equa
 
 @pytest.fixture
 def owner():
-    owner = Wallet()
-    owner.funds = 500
+    owner = Wallet({"USD": 500})
 
     return owner
 
 
 @pytest.fixture
 def payer1():
-    payer1 = Wallet()
-    payer1.funds = 500
+    payer1 = Wallet({"USD": 500})
 
     return payer1
 
 
 @pytest.fixture
 def payer2():
-    payer2 = Wallet()
-    payer2.funds = 500
+    payer2 = Wallet({"USD": 500})
 
     return payer2
 
 
 @pytest.fixture
 def inverter(owner, payer1, payer2):
-    inverter = owner.deploy(300)
-    payer1 = inverter.pay(payer1, 200)
-    payer2 = inverter.pay(payer2, 100)
+    inverter = owner.deploy({"USD": 300})
+    payer1 = inverter.pay(payer1, {"USD": 200})
+    payer2 = inverter.pay(payer2, {"USD": 100})
     
     return inverter
 
 
 @pytest.fixture
 def broker():
-    broker = Wallet()
-    broker.funds = 100
+    broker = Wallet({"USD": 100})
 
     return broker
 
@@ -111,7 +107,7 @@ def test_weighted_vote(payer1, payer2, inverter, broker):
     assert mechanism.in_whitelist(broker) == False
 
     # Case where a payer increases their funds to increase their weight
-    payer1 = inverter.pay(payer1, 200)
+    payer1 = inverter.pay(payer1, {"USD": 200})
 
     mechanism.vote(inverter, payer1, broker, True)
 
