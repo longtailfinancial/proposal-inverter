@@ -9,4 +9,4 @@ def test_deploy():
 
     assert inverter.funds == {"USD": 500}
     assert inverter.current_epoch == 0
-    assert inverter.number_of_brokers() == 0
+    assert inverter.get_number_of_brokers() == 0

@@ -222,11 +222,11 @@ class WeightedVote(WhitelistMechanism):
 
     def _weighted_vote_fraction(self, proposal: "ProposalInverter", broker: "Wallet") -> float:
         weighted_vote = sum([
-            proposal.payer_agreements[payer].total_contributions * vote
+            proposal.payer_agreements[payer].total_contributions() * vote
             for payer, vote in self.votes[broker.public].items()
         ])
         total_contributions = sum(
-            [agreement.total_contributions for agreement in proposal.payer_agreements.values()]
+            [agreement.total_contributions() for agreement in proposal.payer_agreements.values()]
         )
         print(weighted_vote, total_contributions)
 
