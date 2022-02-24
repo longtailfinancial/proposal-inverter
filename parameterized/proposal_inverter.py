@@ -109,6 +109,10 @@ class ProposalInverter(Wallet):
         self.payer_agreements[owner.public] = PayerAgreement()
         self.payer_agreements[owner.public].contributions[self.current_epoch] += self.funds
 
+        # This entry is for brokers that leave without their stake
+        # Funds in this entry are all allocated to brokers
+        self.payer_agreements[self.public] = PayerAgreement()
+
         self.started = self.__minimum_conditions_met()
 
         if not self.started:
@@ -140,13 +144,18 @@ class ProposalInverter(Wallet):
             for epoch in range(self.min_horizon):
                 horizon_funds += min(allocation, self.funds - allocated_funds - horizon_funds)
 
-            for public_key, agreement in self.broker_agreements.items():
-                agreement.allocated_funds += horizon_funds / self.get_number_of_brokers()
-
-            for public_key, agreement in self.payer_agreements.items():
-                # The funder returns are based on the amount that funder contributed
+            staking_bonus = Funds()
+            for public, agreement in self.payer_agreements.items():
                 funder_funds = agreement.total_contributions()
-                agreement.allocated_funds += (self.funds - allocated_funds - horizon_funds) * (funder_funds / self.funds.total_funds())
+
+                if public == self.public:
+                    staking_bonus += (self.funds - allocated_funds - horizon_funds) * (funder_funds / self.funds.total_funds())
+                else:
+                    # The funder returns are based on the amount that funder contributed
+                    agreement.allocated_funds += (self.funds - allocated_funds - horizon_funds) * (funder_funds / self.funds.total_funds())
+
+            for agreement in self.broker_agreements.values():
+                agreement.allocated_funds += (horizon_funds + staking_bonus) / self.get_number_of_brokers()
 
             self.cancelled = True
 
@@ -221,6 +230,8 @@ class ProposalInverter(Wallet):
                 stake = broker_agreement.stake
                 self.funds += stake
                 self.stake -= stake
+
+                self.payer_agreements[self.public].contributions[self.current_epoch] = stake
 
             broker = self.claim(broker)
             broker.joined.discard(self.public)
@@ -323,7 +334,14 @@ class ProposalInverter(Wallet):
         return (self.funds.total_funds() - self.get_total_allocated_funds()) / self.allocation_per_epoch
  
     def get_number_of_brokers(self):
-        return len(self.broker_agreements.keys())
+        return len(self.broker_agreements)
+
+    def get_number_of_payers(self):
+        """
+        The number of payers is one less than what is stored because one is
+        kept to store funds from lost broker stakes.
+        """
+        return len(self.payer_agreements) - 1
  
     def get_total_allocated_funds(self):
         """
