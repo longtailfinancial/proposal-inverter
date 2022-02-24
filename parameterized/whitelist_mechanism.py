@@ -137,7 +137,7 @@ class OwnerVote(WhitelistMechanism):
     not counted.
     """
     def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
-        voter_is_owner = voter.public == proposal.owner_address
+        voter_is_owner = (voter.public == proposal.owner_address)
 
         return voter_is_owner is True
 
@@ -195,9 +195,8 @@ class EqualVote(WhitelistMechanism):
 
     def _voter_fraction(self, proposal: "ProposalInverter", broker: "Wallet") -> float:
         vote = sum([1 * vote for vote in self.votes[broker.public].values()])
-        n_payers = len(proposal.payer_agreements)
 
-        return vote / n_payers
+        return vote / proposal.get_number_of_payers()
 
 
 class WeightedVote(WhitelistMechanism):
@@ -225,10 +224,11 @@ class WeightedVote(WhitelistMechanism):
             proposal.payer_agreements[payer].total_contributions() * vote
             for payer, vote in self.votes[broker.public].items()
         ])
-        total_contributions = sum(
-            [agreement.total_contributions() for agreement in proposal.payer_agreements.values()]
-        )
-        print(weighted_vote, total_contributions)
+        total_contributions = sum([
+            agreement.total_contributions() 
+            for payer, agreement in proposal.payer_agreements.items()
+            if payer != proposal.public
+        ])
 
         return weighted_vote / total_contributions
 
@@ -240,6 +240,7 @@ class UnanimousVote(WhitelistMechanism):
     veto power.
     """
     def _vote_condition(self, proposal: "ProposalInverter", voter: "Wallet", broker: "Wallet") -> bool:
+        print("payer agreements", proposal.payer_agreements.keys())
         voter_is_payer = voter.public in proposal.payer_agreements.keys()
 
         return voter_is_payer
@@ -254,6 +255,7 @@ class UnanimousVote(WhitelistMechanism):
         unanimous = all([
             self.votes[broker.public].get(payer, False)
             for payer in proposal.payer_agreements.keys()
+            if payer != proposal.public
         ])
 
         return unanimous
