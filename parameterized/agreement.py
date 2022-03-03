@@ -2,7 +2,7 @@ import param as pm
 
 from collections import defaultdict
 
-from parameterized.funds import Funds
+from funds import Funds
 
 
 class WalletAgreement(pm.Parameterized):
