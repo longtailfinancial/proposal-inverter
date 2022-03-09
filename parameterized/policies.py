@@ -1,6 +1,8 @@
 import numpy as np
 
-from whitelist_mechanism import NoVote
+from scipy.stats import norm
+
+from .whitelist_mechanism import NoVote
 
 
 rng = np.random.default_rng(42)
@@ -30,11 +32,20 @@ def p_iter_epoch(params, substep, state_history, previous_state):
 
 
 def p_iter_features(params, substep, state_history, previous_state):
+    mean, std_dev = norm.fit([
+        wallet.funds.total_funds() 
+        for wallet in previous_state["wallets"].values()
+    ])
+
     for wallet in previous_state["wallets"].values():
-        wallet.feature_vector += params["feature_noise"]()
+        wallet.feature_vector[0] = norm.cdf(
+            x=wallet.funds.total_funds(),
+            loc=mean,
+            scale=std_dev,
+        )
         
     for proposal in previous_state["proposals"].values():
-        proposal.feature_vector += params["feature_noise"]()
+        pass
         
     return dict()
 
@@ -60,7 +71,12 @@ def p_join(params, substep, state_history, previous_state):
             
             wallet_funds_old = wallet.funds.total_funds()
             proposal_funds_old = (proposal.funds + proposal.stake).total_funds()
-            wallet = proposal.join(wallet, stake)
+
+            try:
+                wallet = proposal.join(wallet, stake)
+            except ValueError:
+                continue
+
             wallet_funds_new = wallet.funds.total_funds()
             
             if wallet_funds_new != wallet_funds_old:
@@ -194,7 +210,7 @@ def p_pay(params, substep, state_history, previous_state):
                 wallet, 
                 previous_state["wallets"],
                 previous_state["proposals"],
-                y_scale=0.01,
+                y_scale=0.005,
             ),
             list(previous_state["proposals"].values())
         )

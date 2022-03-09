@@ -1,14 +1,10 @@
 import numpy as np
 
-from funds import Funds
-from proposal_inverter import Wallet
+from .funds import Funds
+from .proposal_inverter import Wallet
 
 
 rng = np.random.default_rng(42)
-
-
-def h_feature_noise(n_features=5):
-    return rng.normal(loc=0, scale=0.1, size=n_features)
 
 
 def h_join_stake(wallet: Wallet, wallets: dict) -> Funds:

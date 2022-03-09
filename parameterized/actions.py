@@ -1,6 +1,6 @@
 import numpy as np
 
-from proposal_inverter import Wallet
+from .proposal_inverter import Wallet
 
 
 rng = np.random.default_rng(42)
@@ -73,12 +73,16 @@ def a_normal(wallet: Wallet, wallets: dict, proposals: dict, y_scale: float=1) -
 
 def a_probability(wallet: Wallet, wallets: dict, proposals: dict, y_scale: float=1) -> list[bool]:
     """Based on the highest probability from the result of matrix factorization."""
+    n_proposals = len(proposals)
+
+    if n_proposals == 0:
+        return list()
+
     p_matrix = [
         proposal.feature_vector 
         for proposal in proposals.values() 
-        if not proposal.cancelled
     ]
-    prs = np.matmul(p_matrix, wallet.feature_vector)
+    prs = y_scale * np.matmul(p_matrix, wallet.feature_vector)
 
-    return rng.uniform(size=len(proposals)) < prs
+    return rng.uniform(size=n_proposals) < prs
     
