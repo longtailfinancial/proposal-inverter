@@ -32,21 +32,26 @@ def p_iter_epoch(params, substep, state_history, previous_state):
 
 
 def p_iter_features(params, substep, state_history, previous_state):
-    mean, std_dev = norm.fit([
-        wallet.funds.total_funds() 
-        for wallet in previous_state["wallets"].values()
-    ])
+    wallet_feature_0 = params["wallet_feature_0"](previous_state["wallets"])
 
-    for wallet in previous_state["wallets"].values():
-        wallet.feature_vector[0] = norm.cdf(
-            x=wallet.funds.total_funds(),
-            loc=mean,
-            scale=std_dev,
-        )
+    for i, wallet in enumerate(previous_state["wallets"].values()):
+        wallet.feature_vector[0] = wallet_feature_0[i]
+
+    proposal_feature_0 = params["proposal_feature_0"](previous_state["proposals"])
+    proposal_feature_1 = params["proposal_feature_1"](previous_state["proposals"])
+    proposal_feature_2 = params["proposal_feature_2"](previous_state["proposals"])
+    proposal_feature_3 = params["proposal_feature_3"](previous_state["proposals"])
+    proposal_feature_4 = params["proposal_feature_4"](previous_state["proposals"])
         
-    for proposal in previous_state["proposals"].values():
-        pass
-        
+    for i, proposal in enumerate(previous_state["proposals"].values()):
+        proposal.feature_vector = np.array([
+            proposal_feature_0[i],
+            proposal_feature_1[i],
+            proposal_feature_2[i],
+            proposal_feature_3[i],
+            proposal_feature_4[i],
+        ])
+
     return dict()
 
 
@@ -298,7 +303,8 @@ def p_deploy(params, substep, state_history, previous_state):
             proposal = wallet.deploy(
                 funds=initial_funds,
                 broker_whitelist=NoVote(),
-                feature_vector=rng.random(size=wallet.number_of_features)
+                feature_vector=rng.random(size=wallet.number_of_features),
+                allocation_per_epoch=float(rng.choice([5, 10, 15, 20])),
             )
             
             if proposal is not None:
