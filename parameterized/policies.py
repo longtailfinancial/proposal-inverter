@@ -1,6 +1,8 @@
 import numpy as np
 
-from whitelist_mechanism import NoVote
+from scipy.stats import norm
+
+from .whitelist_mechanism import NoVote
 
 
 rng = np.random.default_rng(42)
@@ -30,12 +32,26 @@ def p_iter_epoch(params, substep, state_history, previous_state):
 
 
 def p_iter_features(params, substep, state_history, previous_state):
-    for wallet in previous_state["wallets"].values():
-        wallet.feature_vector += params["feature_noise"]()
+    wallet_feature_0 = params["wallet_feature_0"](previous_state["wallets"])
+
+    for i, wallet in enumerate(previous_state["wallets"].values()):
+        wallet.feature_vector[0] = wallet_feature_0[i]
+
+    proposal_feature_0 = params["proposal_feature_0"](previous_state["proposals"])
+    proposal_feature_1 = params["proposal_feature_1"](previous_state["proposals"])
+    proposal_feature_2 = params["proposal_feature_2"](previous_state["proposals"])
+    proposal_feature_3 = params["proposal_feature_3"](previous_state["proposals"])
+    proposal_feature_4 = params["proposal_feature_4"](previous_state["proposals"])
         
-    for proposal in previous_state["proposals"].values():
-        proposal.feature_vector += params["feature_noise"]()
-        
+    for i, proposal in enumerate(previous_state["proposals"].values()):
+        proposal.feature_vector = np.array([
+            proposal_feature_0[i],
+            proposal_feature_1[i],
+            proposal_feature_2[i],
+            proposal_feature_3[i],
+            proposal_feature_4[i],
+        ])
+
     return dict()
 
 
@@ -60,7 +76,12 @@ def p_join(params, substep, state_history, previous_state):
             
             wallet_funds_old = wallet.funds.total_funds()
             proposal_funds_old = (proposal.funds + proposal.stake).total_funds()
-            wallet = proposal.join(wallet, stake)
+
+            try:
+                wallet = proposal.join(wallet, stake)
+            except ValueError:
+                continue
+
             wallet_funds_new = wallet.funds.total_funds()
             
             if wallet_funds_new != wallet_funds_old:
@@ -194,7 +215,7 @@ def p_pay(params, substep, state_history, previous_state):
                 wallet, 
                 previous_state["wallets"],
                 previous_state["proposals"],
-                y_scale=0.01,
+                y_scale=0.005,
             ),
             list(previous_state["proposals"].values())
         )
@@ -282,7 +303,8 @@ def p_deploy(params, substep, state_history, previous_state):
             proposal = wallet.deploy(
                 funds=initial_funds,
                 broker_whitelist=NoVote(),
-                feature_vector=rng.random(size=wallet.number_of_features)
+                feature_vector=rng.random(size=wallet.number_of_features),
+                allocation_per_epoch=float(rng.choice([5, 10, 15, 20])),
             )
             
             if proposal is not None:

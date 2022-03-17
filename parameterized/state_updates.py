@@ -1,4 +1,4 @@
-from funds import Funds
+from .funds import Funds
 
 
 def s_transactions(params, substep, state_history, previous_state, policy_input):

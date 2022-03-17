@@ -7,9 +7,9 @@ import secrets
 from collections import defaultdict
 from eth_account import Account
 
-from agreement import BrokerAgreement, PayerAgreement
-from funds import Funds
-from whitelist_mechanism import WhitelistMechanism, NoVote, OwnerVote, PayerVote, EqualVote, WeightedVote, UnanimousVote
+from .agreement import BrokerAgreement, PayerAgreement
+from .funds import Funds
+from .whitelist_mechanism import WhitelistMechanism, NoVote, OwnerVote, PayerVote, EqualVote, WeightedVote, UnanimousVote
 
 
 pn.extension()
