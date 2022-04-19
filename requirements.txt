@@ -1,3 +1,6 @@
+coverage
+eth-account
 param
 panel
-eth-account
+pylint
+pytest
