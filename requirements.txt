@@ -1,6 +1,8 @@
 coverage
 eth-account
-param
+numpy
+pandas
 panel
+param
 pylint
 pytest
