@@ -1,7 +1,14 @@
 import pytest
 
 from parameterized.proposal_inverter import Wallet, ProposalInverter
-from parameterized.whitelist_mechanism import NoVote, OwnerVote, PayerVote, EqualVote, WeightedVote, UnanimousVote
+from parameterized.whitelist_mechanism import (
+    NoVote,
+    OwnerVote,
+    PayerVote,
+    EqualVote,
+    WeightedVote,
+    UnanimousVote,
+)
 
 
 @pytest.fixture
@@ -30,7 +37,7 @@ def inverter(owner, payer1, payer2):
     inverter = owner.deploy({"USD": 300})
     payer1 = inverter.pay(payer1, {"USD": 200})
     payer2 = inverter.pay(payer2, {"USD": 100})
-    
+
     return inverter
 
 
@@ -122,7 +129,7 @@ def test_unanimous_vote(owner, payer1, payer2, inverter, broker):
     mechanism.vote(inverter, payer2, broker, True)
 
     assert mechanism.in_waitlist(broker) == True
-    assert mechanism.in_whitelist(broker) == False    
+    assert mechanism.in_whitelist(broker) == False
 
     mechanism.vote(inverter, owner, broker, True)
 
