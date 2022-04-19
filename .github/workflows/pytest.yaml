@@ -1,4 +1,4 @@
-name: "Unit Testing and Code Coverage"
+name: "Unit Testing"
 
 on:
   push:
@@ -23,16 +23,3 @@ jobs:
 
       - name: run unit tests
         run: pytest ./parameterized/tests/
-
-      - name: generate coverage report
-        run: |
-          coverage run -m pytest ./parameterized/tests/
-          coverage xml
-
-      - name: generate coverage badge
-        uses: codecov/codecov-action@v2
-        with:
-          files: ./coverage.xml
-          fail_ci_if_error: true
-          move_coverage_to_trash: true
-          token: ${{ secrets.GITHUB_TOKEN }}
