@@ -9,7 +9,15 @@ from eth_account import Account
 
 from .agreement import BrokerAgreement, PayerAgreement
 from .funds import Funds
-from .whitelist_mechanism import WhitelistMechanism, NoVote, OwnerVote, PayerVote, EqualVote, WeightedVote, UnanimousVote
+from .whitelist_mechanism import (
+    WhitelistMechanism,
+    NoVote,
+    OwnerVote,
+    PayerVote,
+    EqualVote,
+    WeightedVote,
+    UnanimousVote,
+)
 
 
 pn.extension()
@@ -25,18 +33,23 @@ def generate_eth_account():
 
 class Wallet(pm.Parameterized):
     """
-    number_of_features represents the number of features that a wallet accounts for when reviewing a proposal, 
-    which is represented by wallet types. The wallet types for this example are which in this example are 
-    (T1: Loyal, T2: Frugal, T3: Time sensitive, T4: Greedy, F5: Philanthropic). For further details into 
+    number_of_features represents the number of features that a wallet accounts for when reviewing a proposal,
+    which is represented by wallet types. The wallet types for this example are which in this example are
+    (T1: Loyal, T2: Frugal, T3: Time sensitive, T4: Greedy, F5: Philanthropic). For further details into
     what each Wallet type represents, refer to the Proposal Inverter: Matrix factorization Hackmd. Please
     note: number of wallets must be equal to the number of proposal features.
     """
-    funds = pm.ClassSelector(Funds, default=Funds(), doc="stores the funds in this wallet")
 
-    feature_vector = pm.ClassSelector(np.ndarray, doc="stores each wallet's characteristics as features in a vector")
+    funds = pm.ClassSelector(
+        Funds, default=Funds(), doc="stores the funds in this wallet"
+    )
+
+    feature_vector = pm.ClassSelector(
+        np.ndarray, doc="stores each wallet's characteristics as features in a vector"
+    )
     number_of_features = pm.Number(5, constant=True, doc="number of wallet features")
-    
-    def __init__(self, funds: dict|Funds = dict(), **params):
+
+    def __init__(self, funds: dict | Funds = dict(), **params):
         super().__init__(**params)
 
         self.funds = Funds(funds)
@@ -46,13 +59,13 @@ class Wallet(pm.Parameterized):
         self.joined = set()
         self.paid = set()
         self.owned = set()
- 
-    def deploy(self, funds: dict|Funds, **params):
+
+    def deploy(self, funds: dict | Funds, **params):
         """
-        An actor within the ecosystem can deploy a new agreement contract by specifying which proposal the agreement 
-        supports, setting the parameters of the smart contract providing initial funds, and providing any (unenforced) 
-        commitment to continue topping up the contract as payer under as long as a set of SLAs are met. For the purpose 
-        of this draft, it is assumed that the contract is initialized with some quantity of funds F such that H>Hmin 
+        An actor within the ecosystem can deploy a new agreement contract by specifying which proposal the agreement
+        supports, setting the parameters of the smart contract providing initial funds, and providing any (unenforced)
+        commitment to continue topping up the contract as payer under as long as a set of SLAs are met. For the purpose
+        of this draft, it is assumed that the contract is initialized with some quantity of funds F such that H>Hmin
         and that B=∅.
         """
         if self.funds < funds:
@@ -71,34 +84,59 @@ class Wallet(pm.Parameterized):
 
 class ProposalInverter(Wallet):
     """
-    number_of_features represents the number of features that are present in a proposal, which in 
-    this example are (F1: Location, F2: Simplicity, F3:Profitability, F4: Low time commitment, 
-    F5: Environmental/Humanitarian proposal). For further details into what each factor represents, 
-    refer to Proposal Inverter: Matrix factorization Hackmd. Please note: number of features must be 
+    number_of_features represents the number of features that are present in a proposal, which in
+    this example are (F1: Location, F2: Simplicity, F3:Profitability, F4: Low time commitment,
+    F5: Environmental/Humanitarian proposal). For further details into what each factor represents,
+    refer to Proposal Inverter: Matrix factorization Hackmd. Please note: number of features must be
     equal for both wallets and proposals.
     """
+
     # State
-    cancelled = pm.Boolean(False, doc="if the proposal has been cancelled, funds will no longer be allocated")
+    cancelled = pm.Boolean(
+        False,
+        doc="if the proposal has been cancelled, funds will no longer be allocated",
+    )
     current_epoch = pm.Number(0, doc="number of epochs that have passed")
     stake = pm.ClassSelector(Funds, default=Funds(), doc="The total broker stake")
 
-    broker_agreements = pm.Dict(dict(), doc="maps each broker's public key to their broker agreement")
-    payer_agreements = pm.Dict(dict(), doc="maps each payer's public key to their Payer agreement")
+    broker_agreements = pm.Dict(
+        dict(), doc="maps each broker's public key to their broker agreement"
+    )
+    payer_agreements = pm.Dict(
+        dict(), doc="maps each payer's public key to their Payer agreement"
+    )
 
     broker_whitelist = pm.ClassSelector(WhitelistMechanism, default=OwnerVote())
     payer_whitelist = pm.ClassSelector(WhitelistMechanism, default=NoVote())
-    
+
     # Parameters
-    allocation_per_epoch = pm.Number(10, doc="funds allocated to all brokers per epoch in USD")
-    epoch_length = pm.Number(60*60*24, doc="length of one epoch, measured in seconds")
+    allocation_per_epoch = pm.Number(
+        10, doc="funds allocated to all brokers per epoch in USD"
+    )
+    epoch_length = pm.Number(
+        60 * 60 * 24, doc="length of one epoch, measured in seconds"
+    )
     max_brokers = pm.Number(5, doc="maximum number of brokers that can join")
-    min_contribution = pm.Number(5, doc="minimum funds that a payer must contribute to join")
-    min_epochs = pm.Number(28, doc="minimum number of epochs that must pass for a broker to exit and take their stake")
-    min_horizon = pm.Number(7, doc="minimum number of future epochs the proposal inverter can allocate funds for")
-    min_payers = pm.Number(1, doc="minimum number of payers that need to commit before any funds are released")
+    min_contribution = pm.Number(
+        5, doc="minimum funds that a payer must contribute to join"
+    )
+    min_epochs = pm.Number(
+        28,
+        doc="minimum number of epochs that must pass for a broker to exit and take their stake",
+    )
+    min_horizon = pm.Number(
+        7,
+        doc="minimum number of future epochs the proposal inverter can allocate funds for",
+    )
+    min_payers = pm.Number(
+        1,
+        doc="minimum number of payers that need to commit before any funds are released",
+    )
     min_brokers = pm.Number(1, doc="minimum number of brokers required to continue")
-    min_stake = pm.Number(5, doc="minimum funds that a broker must stake to join in USD")
-    
+    min_stake = pm.Number(
+        5, doc="minimum funds that a broker must stake to join in USD"
+    )
+
     def __init__(self, owner: Wallet, **params):
         super().__init__(**params)
 
@@ -107,7 +145,9 @@ class ProposalInverter(Wallet):
         # Manually add owner to whitelist and track owner contribution
         self.payer_whitelist.whitelist.add(owner.public)
         self.payer_agreements[owner.public] = PayerAgreement()
-        self.payer_agreements[owner.public].contributions[self.current_epoch] += self.funds
+        self.payer_agreements[owner.public].contributions[
+            self.current_epoch
+        ] += self.funds
 
         # This entry is for brokers that leave without their stake
         # Funds in this entry are all allocated to brokers
@@ -116,13 +156,15 @@ class ProposalInverter(Wallet):
         self.started = self.__minimum_conditions_met()
 
         if not self.started:
-            print("ProposalInverter :: proposal deployed without meeting minimum conditions")
-    
+            print(
+                "ProposalInverter :: proposal deployed without meeting minimum conditions"
+            )
+
     def cancel(self, owner_address):
         """
-        In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any 
+        In the event that the owner closes down a contract, each Broker gets back their stake, and recieves any
         unclaimed tokens allocated to their address as well an equal share of the remaining unallocated assets.
-        
+
         That is to say the quantity Δdi of data tokens is distributed to each broker i∈B
         Δdi=si+ai+RN
         and thus the penultimate financial state of the contract is
@@ -134,7 +176,7 @@ class ProposalInverter(Wallet):
         elif self.cancelled:
             print("Proposal has already been cancelled")
         else:
-            allocated_funds = self.get_allocated_funds()       
+            allocated_funds = self.get_allocated_funds()
             allocation = self.get_allocation()
 
             # This is equivalent to `allocation_per_epoch * min_horizon` except
@@ -142,20 +184,28 @@ class ProposalInverter(Wallet):
             # than the minimum horizon
             horizon_funds = Funds()
             for epoch in range(self.min_horizon):
-                horizon_funds += min(allocation, self.funds - allocated_funds - horizon_funds)
+                horizon_funds += min(
+                    allocation, self.funds - allocated_funds - horizon_funds
+                )
 
             staking_bonus = Funds()
             for public, agreement in self.payer_agreements.items():
                 funder_funds = agreement.total_contributions()
 
                 if public == self.public:
-                    staking_bonus += (self.funds - allocated_funds - horizon_funds) * (funder_funds / self.funds.total_funds())
+                    staking_bonus += (self.funds - allocated_funds - horizon_funds) * (
+                        funder_funds / self.funds.total_funds()
+                    )
                 else:
                     # The funder returns are based on the amount that funder contributed
-                    agreement.allocated_funds += (self.funds - allocated_funds - horizon_funds) * (funder_funds / self.funds.total_funds())
+                    agreement.allocated_funds += (
+                        self.funds - allocated_funds - horizon_funds
+                    ) * (funder_funds / self.funds.total_funds())
 
             for agreement in self.broker_agreements.values():
-                agreement.allocated_funds += (horizon_funds + staking_bonus) / self.get_number_of_brokers()
+                agreement.allocated_funds += (
+                    horizon_funds + staking_bonus
+                ) / self.get_number_of_brokers()
 
             self.cancelled = True
 
@@ -169,11 +219,11 @@ class ProposalInverter(Wallet):
 
         return wallet
 
-    def join(self, broker: Wallet, stake: dict|Funds):
+    def join(self, broker: Wallet, stake: dict | Funds):
         """
         A broker can join the agreement (and must also join the stream associated with that agreement) by staking the
         minimum stake.
-        
+
         Note that if the act of joining would cause |B+|>nmax then joining would fail. It is not possible for more than
         `n_max` brokers to be party to this agreement.
         Furthermore, it is possible to enforce addition access control via whitelists or blacklists which serve to
@@ -222,7 +272,10 @@ class ProposalInverter(Wallet):
         if broker_agreement is None:
             print("Broker is not part of this proposal")
         else:
-            if self.cancelled or self.current_epoch - broker_agreement.epoch_joined >= self.min_epochs:
+            if (
+                self.cancelled
+                or self.current_epoch - broker_agreement.epoch_joined >= self.min_epochs
+            ):
                 stake = broker_agreement.stake
                 broker.funds += stake
                 self.stake -= stake
@@ -231,7 +284,9 @@ class ProposalInverter(Wallet):
                 self.funds += stake
                 self.stake -= stake
 
-                self.payer_agreements[self.public].contributions[self.current_epoch] = stake
+                self.payer_agreements[self.public].contributions[
+                    self.current_epoch
+                ] = stake
 
             broker = self.claim(broker)
             broker.joined.discard(self.public)
@@ -239,13 +294,13 @@ class ProposalInverter(Wallet):
 
         return broker
 
-    def pay(self, payer: Wallet, tokens: dict|Funds):
+    def pay(self, payer: Wallet, tokens: dict | Funds):
         """
-        A payer takes the action pay by providing a quantity of tokens (split into Stablecoins and DAO tokens) 
+        A payer takes the action pay by providing a quantity of tokens (split into Stablecoins and DAO tokens)
         ΔF, which increased the unallocated funds (and thus also the total funds).
         F+ = F + ΔF
         R+ = R + ΔF
-        Furthermore, the Horizon H is increased 
+        Furthermore, the Horizon H is increased
         H+ = (R + ΔF)/ ΔA = H + (ΔF/ΔA)
         """
         tokens = Funds(tokens)
@@ -262,7 +317,9 @@ class ProposalInverter(Wallet):
                 self.payer_agreements[payer.public] = PayerAgreement()
                 payer.paid.add(self.public)
 
-            self.payer_agreements[payer.public].contributions[self.current_epoch] += tokens
+            self.payer_agreements[payer.public].contributions[
+                self.current_epoch
+            ] += tokens
 
             payer.funds -= tokens
             self.funds += tokens
@@ -271,7 +328,7 @@ class ProposalInverter(Wallet):
             print("Payer not yet whitelisted, added to waitlist")
 
         return payer
-   
+
     def vote_broker(self, voter: Wallet, broker: Wallet, vote: bool):
         """
         This is the outward facing interface to directly affect which brokers
@@ -288,11 +345,11 @@ class ProposalInverter(Wallet):
         """
         self.payer_whitelist.vote(self, voter, payer, vote)
 
-    def iter_epoch(self, n_epochs: int=1):
+    def iter_epoch(self, n_epochs: int = 1):
         """
         Iterates to the next epoch and updates the total claimable funds for each broker.
-        There may conditions under which any address may trigger the cancel but these conditions should be 
-        indicative of a failure on the part of the payer. An example policy would be to allow forced cancel 
+        There may conditions under which any address may trigger the cancel but these conditions should be
+        indicative of a failure on the part of the payer. An example policy would be to allow forced cancel
         when n < nmin and H < H min, and possibly only if this is the case more multiple epochs.
         """
         for epoch in range(n_epochs):
@@ -307,23 +364,34 @@ class ProposalInverter(Wallet):
                         self.__allocate_funds()
 
             self.current_epoch += 1
-   
+
     def get_allocation(self):
         """
         Returns the allocated tokens for the current epoch. This is for the
         entire group of brokers, not per individual broker.
         """
         unallocated_funds = self.funds - self.get_allocated_funds()
-        total_unallocated_funds = self.funds.total_funds() - self.get_total_allocated_funds()
+        total_unallocated_funds = (
+            self.funds.total_funds() - self.get_total_allocated_funds()
+        )
 
         return self.allocation_per_epoch * unallocated_funds / total_unallocated_funds
- 
+
     def get_allocated_funds(self):
         """
         Returns the total unclaimed allocated funds in their native tokens.
         """
-        broker_allocated = sum([agreement.allocated_funds for agreement in self.broker_agreements.values()], start=Funds())
-        payer_allocated = sum([agreement.allocated_funds for agreement in self.payer_agreements.values()], start=Funds())
+        broker_allocated = sum(
+            [
+                agreement.allocated_funds
+                for agreement in self.broker_agreements.values()
+            ],
+            start=Funds(),
+        )
+        payer_allocated = sum(
+            [agreement.allocated_funds for agreement in self.payer_agreements.values()],
+            start=Funds(),
+        )
 
         return broker_allocated + payer_allocated
 
@@ -331,8 +399,10 @@ class ProposalInverter(Wallet):
         """
         Returns the current horizon.
         """
-        return (self.funds.total_funds() - self.get_total_allocated_funds()) / self.allocation_per_epoch
- 
+        return (
+            self.funds.total_funds() - self.get_total_allocated_funds()
+        ) / self.allocation_per_epoch
+
     def get_number_of_brokers(self):
         return len(self.broker_agreements)
 
@@ -342,14 +412,24 @@ class ProposalInverter(Wallet):
         kept to store funds from lost broker stakes.
         """
         return len(self.payer_agreements) - 1
- 
+
     def get_total_allocated_funds(self):
         """
         Returns the total unclaimed allocated funds from all broker and payer
         agreements converted into USD.
         """
-        broker_allocated = sum([agreement.total_allocated() for agreement in self.broker_agreements.values()])
-        payer_allocated = sum([agreement.total_allocated() for agreement in self.payer_agreements.values()])
+        broker_allocated = sum(
+            [
+                agreement.total_allocated()
+                for agreement in self.broker_agreements.values()
+            ]
+        )
+        payer_allocated = sum(
+            [
+                agreement.total_allocated()
+                for agreement in self.payer_agreements.values()
+            ]
+        )
 
         return broker_allocated + payer_allocated
 
@@ -361,7 +441,6 @@ class ProposalInverter(Wallet):
 
         for agreement in self.broker_agreements.values():
             agreement.allocated_funds += allocation_per_broker
-
 
     def __claim_broker_funds(self, broker: Wallet):
         """
@@ -392,7 +471,7 @@ class ProposalInverter(Wallet):
         to the brokers are returned to the payers as claimable funds.
         """
         payer_agreement = self.payer_agreements.get(payer.public)
-        
+
         if payer_agreement is None:
             print("Payer is not part of this proposal")
         else:

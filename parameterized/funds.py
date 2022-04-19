@@ -12,7 +12,7 @@ class Funds(pm.Parameterized):
     funds = pm.Dict(defaultdict(float), doc="maps a token to the number of tokens held")
     price = {"USD": 1.0}
 
-    def __init__(self, funds: dict|T = dict(), price: dict = dict()):
+    def __init__(self, funds: dict | T = dict(), price: dict = dict()):
         super().__init__()
 
         self.funds.update(funds)
@@ -28,22 +28,23 @@ class Funds(pm.Parameterized):
         return self.funds.keys()
 
     def total_funds(self, to_token: str = "USD"):
-        return sum([
-            self.convert(from_token, to_token, n_tokens)
-            for from_token, n_tokens in self.funds.items()
-        ])
+        return sum(
+            [
+                self.convert(from_token, to_token, n_tokens)
+                for from_token, n_tokens in self.funds.items()
+            ]
+        )
 
-    def update(self, funds: dict|T = dict()):
+    def update(self, funds: dict | T = dict()):
         for key, value in funds.items():
             self.funds[key] = value
 
-    def __negative(self, other: dict|T, factor: int = 1) -> bool:
-        return any([
-            self.funds[token] + factor * other[token] < 0
-            for token in other.keys()
-        ])
+    def __negative(self, other: dict | T, factor: int = 1) -> bool:
+        return any(
+            [self.funds[token] + factor * other[token] < 0 for token in other.keys()]
+        )
 
-    def __add__(self, other: dict|T):
+    def __add__(self, other: dict | T):
         funds = deepcopy(self)
 
         if self.__negative(other, factor=1):
@@ -54,10 +55,10 @@ class Funds(pm.Parameterized):
 
         return funds
 
-    def __iadd__(self, other: dict|T):
+    def __iadd__(self, other: dict | T):
         return self + other
 
-    def __sub__(self, other: dict|T):
+    def __sub__(self, other: dict | T):
         funds = deepcopy(self)
 
         if self.__negative(other, factor=-1):
@@ -68,52 +69,52 @@ class Funds(pm.Parameterized):
 
         return funds
 
-    def __isub__(self, other: dict|T):
+    def __isub__(self, other: dict | T):
         return self - other
 
-    def __mul__(self, factor: int|float):
+    def __mul__(self, factor: int | float):
         if factor < 0:
             raise ValueError("Failed to multiply, funds cannot be negative")
 
         return Funds({key: value * factor for key, value in self.funds.items()})
 
-    def __imul__(self, factor: int|float):
+    def __imul__(self, factor: int | float):
         return self * factor
 
-    def __rmul__(self, factor: int|float):
+    def __rmul__(self, factor: int | float):
         return self * factor
 
-    def __truediv__(self, factor: int|float):
+    def __truediv__(self, factor: int | float):
         if factor < 0:
             raise ValueError("Failed to divide, funds cannot be negative")
 
         return Funds({key: value / factor for key, value in self.funds.items()})
 
-    def __itruediv__(self, factor: int|float):
+    def __itruediv__(self, factor: int | float):
         return self / factor
 
-    def __rtruediv__(self, factor: int|float):
+    def __rtruediv__(self, factor: int | float):
         if factor < 0:
             raise ValueError("Failed to divide, funds cannot be negative")
 
         return Funds({key: factor / value for key, value in self.funds.items()})
 
-    def __lt__(self, other: dict|T):
+    def __lt__(self, other: dict | T):
         return all([self.funds[token] < other[token] for token in other.keys()])
 
-    def __le__(self, other: dict|T):
+    def __le__(self, other: dict | T):
         return all([self.funds[token] <= other[token] for token in other.keys()])
 
-    def __eq__(self, other: dict|T):
+    def __eq__(self, other: dict | T):
         return all([self.funds[token] == other[token] for token in other.keys()])
 
-    def __ne__(self, other: dict|T):
+    def __ne__(self, other: dict | T):
         return all([self.funds[token] != other[token] for token in other.keys()])
 
-    def __ge__(self, other: dict|T):
+    def __ge__(self, other: dict | T):
         return all([self.funds[token] >= other[token] for token in other.keys()])
 
-    def __gt__(self, other: dict|T):
+    def __gt__(self, other: dict | T):
         return all([self.funds[token] > other[token] for token in other.keys()])
 
     def __getitem__(self, key: str):

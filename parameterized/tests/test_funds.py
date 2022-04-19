@@ -5,15 +5,7 @@ from parameterized.funds import Funds
 
 @pytest.fixture
 def funds():
-    funds = Funds(
-        funds={
-            "ABC": 42
-        },
-        price={
-            "ABC": 1.5,
-            "XYZ": 96
-        }
-    )
+    funds = Funds(funds={"ABC": 42}, price={"ABC": 1.5, "XYZ": 96})
 
     return funds
 

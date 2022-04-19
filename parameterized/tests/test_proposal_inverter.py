@@ -80,7 +80,7 @@ def test_claim(inverter, broker1, broker2):
 
 
 def test_join(inverter, broker1):
-    """"
+    """ "
     Simple test to add a single broker and check the properties of the proposal
     inverter.
     """
@@ -125,7 +125,7 @@ def test_leave(inverter, broker1, broker2):
     assert inverter.funds == {"USD": 300}
     assert broker2.funds == {"USD": 300}
 
- 
+
 def test_pay(inverter, payer):
     """
     Payer contributes more than minimum contribution and is accepted.
@@ -135,7 +135,7 @@ def test_pay(inverter, payer):
     assert payer.funds == {"USD": 75}
     assert inverter.funds == {"USD": 525}
 
- 
+
 def test_pay_lower_than_minimum(inverter, payer):
     """
     Payer cannot contribute lower than minimum contribution
@@ -145,7 +145,7 @@ def test_pay_lower_than_minimum(inverter, payer):
     assert payer.funds == {"USD": 100}
     assert inverter.funds == {"USD": 500}
 
-  
+
 def test_get_allocated_funds(inverter, broker1, broker2):
     assert inverter.get_allocated_funds() == {}
 
@@ -166,29 +166,29 @@ def test_get_allocated_funds(inverter, broker1, broker2):
 
     assert inverter.get_allocated_funds() == {"USD": 300}
 
-    
+
 def test_cancel(owner, inverter, broker1, broker2):
     # Add brokers (each with a different initial stake)
     broker1 = inverter.join(broker1, {"USD": 50})
     broker2 = inverter.join(broker2, {"USD": 100})
-    
+
     # Check total funds: 500(owner initial amount), 150 from stakes
     assert inverter.funds == {"USD": 500}
     assert inverter.stake == {"USD": 150}
-    
+
     inverter.iter_epoch(30)
-    
+
     # Cancel the proposal inverter
     inverter.cancel(owner.public)
 
     # Each broker leaves the proposal
     broker1 = inverter.leave(broker1)
     broker2 = inverter.leave(broker2)
-        
+
     # Broker1 funds = 50 (current funds) + 50 (stake) + 150 (claim) + 70/2 = 285
     # 70/2 = (allocation_per_epoch * min_horizon)/ num_of_brokers
     assert broker1.funds == {"USD": 285}
-    
+
     # Broker2 funds = 0 (current funds) + 100 (stake) + 150 (claim) + 70/2 = 285
     # 70/2 = (allocation_per_epoch * min_horizon)/ num_of_brokers
     assert broker2.funds == {"USD": 285}
@@ -197,7 +197,7 @@ def test_cancel(owner, inverter, broker1, broker2):
     # 300 = funds allocated to brokers
     # 70 = minimum horizon allocated to brokers
     owner = inverter.claim(owner)
-    
+
     # End state of proposal inverter
     assert owner.funds == {"USD": 630}
     assert inverter.funds == {"USD": 0}
@@ -212,10 +212,10 @@ def test_forced_cancel(broker1):
     # Deploy proposal inverter
     owner = Wallet(funds={"USD": 1000})
     inverter = owner.deploy({"USD": 100}, broker_whitelist=NoVote())
-    
+
     # Add broker
     broker1 = inverter.join(broker1, {"USD": 9})
-    
+
     # Dip below the minimum conditions
     inverter.iter_epoch(5)
 

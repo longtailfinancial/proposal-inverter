@@ -28,7 +28,7 @@ def test_dogfood_model_2022():
         min_stake=1,
         min_epochs=1,
         min_horizon=2,
-        epoch_length=3600*24*30,
+        epoch_length=3600 * 24 * 30,
         allocation_per_epoch=20_000,
         max_brokers=20,
         broker_whitelist=OwnerVote(),
