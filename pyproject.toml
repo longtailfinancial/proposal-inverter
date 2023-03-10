@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "proposal-inverter"
+version = "0.1.0"
+description = ""
+authors = ["Shawn Anderson, Austin Hyung"]
+readme = "README.md"
+packages = [{include = "proposal_inverter"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+coverage = "^7.2.1"
+eth-account = "^0.8.0"
+numpy = "^1.24.2"
+pandas = "^1.5.3"
+panel = "^0.14.4"
+param = "^1.12.3"
+pylint = "^2.17.0"
+pytest = "^7.2.2"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
